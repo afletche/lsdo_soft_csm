@@ -1,4 +1,4 @@
-# lsdo_project_template
+# lsdo_soft_csm
 
 <!---
 [![Python](https://img.shields.io/pypi/pyversions/lsdo_project_template)](https://img.shields.io/pypi/pyversions/lsdo_project_template)
@@ -13,7 +13,7 @@
 [![Issues](https://img.shields.io/github/issues/LSDOlab/lsdo_project_template.svg)](https://github.com/LSDOlab/lsdo_project_template/issues)
 
 
-A template repository for LSDOlab projects
+A temporary repository for modeling mechanics of soft materials. Ignore the rest of this readme.
 
 This repository serves as a template for all LSDOlab projects with regard to documentation, testing and hosting of open-source code.
 Note that template users need to edit the README badge definitions for their respective packages.
