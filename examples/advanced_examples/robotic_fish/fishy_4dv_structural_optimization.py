@@ -40,7 +40,7 @@ Subject to:
 
 # region Import and Setup
 def import_geometry() -> BSpline:
-    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry.pickle", 'rb') as handle:
+    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_fine.pickle", 'rb') as handle:
         fishy = pickle.load(handle)
         return fishy
 
@@ -55,7 +55,7 @@ structural_mesh_nodes = structural_mesh.points/1000 + np.array([0.08 + 0.04, 0, 
 fenics_mesh_indices = pickle.load(open("examples/advanced_examples/robotic_fish/meshes/module_v1_fenics_mesh_indices.pickle", "rb"))
 structural_mesh_nodes = structural_mesh_nodes[fenics_mesh_indices]
 
-structural_mesh_parametric = fishy.project(points=structural_mesh_nodes, grid_search_density=65, max_iterations=500, plot=False)
+structural_mesh_parametric = fishy.project(points=structural_mesh_nodes, grid_search_density=100, max_iterations=500, plot=False)
 structural_module_front_parametric = fishy.project(points=np.array([[0.08 + 0.12, 0., 0.]]), grid_search_density=150, plot=False)
 structural_mesh_nodes = fishy.evaluate(structural_mesh_parametric).value.reshape((-1,3))
 # endregion -Structural Mesh Projection
@@ -171,15 +171,16 @@ geometry_parameterization_solver.declare_input(name='fishy_height', input=fishy_
 # endregion -Evaluate Parameterization For Solver
 
 # region -Evaluate Parameterization
-fishy_length_input = system_model.create_input(name='fishy_length', shape=(1,), val=fishy_length.value, dv_flag=True, upper=0.7, lower=0.3, scaler=1.e1)
+fishy_length_input = system_model.create_input(name='fishy_length', shape=(1,), val=fishy_length.value, dv_flag=True, upper=1., lower=0.3, scaler=1.e1)
 # fishy_length_input = system_model.create_input(name='fishy_length', shape=(1,), val=0.7, dv_flag=True, upper=1.)
-fishy_height_input = system_model.create_input(name='fishy_height', shape=(1,), val=fishy_height.value, dv_flag=True, upper=0.09, lower=0.04, scaler=1.e2)
+fishy_height_input = system_model.create_input(name='fishy_height', shape=(1,), val=fishy_height.value, dv_flag=True, upper=0.1, lower=0.04, scaler=1.e2)
 # fishy_height_input = system_model.create_input(name='fishy_height', shape=(1,), val=0.1, dv_flag=True, upper=0.1, lower=0.04)
 optimization_inputs = {'fishy_length': fishy_length_input, 'fishy_height': fishy_height_input}
 parameterization_solver_states = geometry_parameterization_solver.evaluate(optimization_inputs)
 
 length_sectional_translations_b_spline_parameterization.coefficients = parameterization_solver_states['length_sectional_translations_b_spline_coefficients']
-width_scaling_input = system_model.create_input(name='width_scaling', shape=(1,), val=-0.0, dv_flag=True, upper=0.01, lower=-0.015, scaler=1.e2)
+# width_scaling_input = system_model.create_input(name='width_scaling', shape=(1,), val=-0.0, dv_flag=True, upper=0.01, lower=-0.015, scaler=1.e2)
+width_scaling_input = system_model.create_input(name='width_scaling', shape=(1,), val=-0.0, dv_flag=True, upper=0.01, lower=-0.02, scaler=1.e2)
 width_sectional_stretches_b_spline_parameterization.coefficients = width_scaling_input
 height_sectional_stretches_b_spline_parameterization.coefficients = parameterization_solver_states['height_sectional_stretches_b_spline_coefficients']
 
@@ -318,11 +319,12 @@ for i in range(2):
 # region Objective Model
 max_tip_displacement_node = np.argmax(structural_displacements.value.reshape((-1,3))[:,2])
 flattened_index = max_tip_displacement_node*3 + 2
-surface_area_penalty = 4.       # shrinks the length and height a bit smaller (width lower bound)
+# surface_area_penalty = 4.       # shrinks the length and height a bit smaller (width lower bound)
 # surface_area_penalty = 2.     # just shrinks the width
 # surface_area_penalty = 1.     # Makes the length and height a bit larger (width lower bound)
-# surface_area_penalty = 1.e-10
-objective = -((structural_displacements_flattened[int(flattened_index)]))/(fishy_length_input**2) + surface_area_penalty*surface_area**2
+surface_area_penalty = 1.e-10
+# objective = -((structural_displacements_flattened[int(flattened_index)]))/(fishy_length_input**2) + surface_area_penalty*surface_area**2
+objective = -((structural_displacements_flattened[int(flattened_index)]))/(fishy_length_input) + surface_area_penalty*surface_area**2
 # objective = -(structural_displacements_flattened[int(flattened_index)]**2) + surface_area_penalty*surface_area**2
 
 system_model.register_output(objective)

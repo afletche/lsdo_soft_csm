@@ -26,7 +26,7 @@ Subject to: Length <= 0.5
 
 # region Import and Setup
 def import_geometry() -> BSpline:
-    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry.pickle", 'rb') as handle:
+    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_fine.pickle", 'rb') as handle:
         fishy = pickle.load(handle)
         return fishy
 
@@ -41,8 +41,11 @@ structural_mesh_nodes = structural_mesh.points/1000 + np.array([0.08 + 0.04, 0, 
 fenics_mesh_indices = pickle.load(open("examples/advanced_examples/robotic_fish/meshes/module_v1_fenics_mesh_indices.pickle", "rb"))
 structural_mesh_nodes = structural_mesh_nodes[fenics_mesh_indices]
 
-structural_mesh_parametric = fishy.project(points=structural_mesh_nodes, grid_search_density=65, max_iterations=500, plot=False)
+structural_mesh_parametric = fishy.project(points=structural_mesh_nodes, grid_search_density=100, max_iterations=500, plot=False)
 structural_module_front_parametric = fishy.project(points=np.array([[0.08 + 0.12, 0., 0.]]), grid_search_density=150, plot=False)
+structural_module_back_parametric = fishy.project(points=np.array([[0.12, 0., 0.]]), grid_search_density=150, plot=False)
+# print(structural_module_back_parametric)
+# exit()
 structural_mesh_nodes = fishy.evaluate(structural_mesh_parametric).value.reshape((-1,3))
 # endregion -Structural Mesh Projection
 
@@ -233,7 +236,8 @@ num_u_stuff = 50
 num_v_stuff = 25
 num_w_stuff = 25
 
-edge_u_coordinate = 0.66
+# edge_u_coordinate = 0.66
+edge_u_coordinate = structural_module_back_parametric[0][0]
 w_coordinates, v_coordinates = np.meshgrid(np.linspace(0., 1., num_v_stuff), np.linspace(0., 1., num_w_stuff))
 u_coordinates = np.ones_like(v_coordinates)*0.
 derivative_parametric_coordinates = np.stack((u_coordinates.flatten(), v_coordinates.flatten(), w_coordinates.flatten()), axis=1)
@@ -267,7 +271,7 @@ stuffing_parametric_coordinates = np.zeros((num_u_stuff*num_v_stuff*num_w_stuff,
 
 # This almost works, but this is slow because of lots of small-ish indexing
 for i, u in enumerate(u_stuff):
-    delta_u = (u - 0.66)/(max_u - min_u)
+    delta_u = (u - edge_u_coordinate)/(max_u - min_u)
     flattened_indices = np.arange(i*num_v_stuff*num_w_stuff*3, (i+1)*num_v_stuff*num_w_stuff*3)
     stuffing_points[flattened_indices] = displacement_values_at_edge + (derivative_values_at_edge*delta_u).reshape((-1,))
     stuffing_parametric_coordinates_at_this_u = derivative_parametric_coordinates.copy()
@@ -279,7 +283,8 @@ for i, u in enumerate(u_stuff):
 combined_parametric_coordinates = np.concatenate((structural_mesh_parametric, stuffing_parametric_coordinates))
 combined_values = m3l.vstack((structural_displacements_flattened, stuffing_points))
 
-regularization_parameter = 1e-3
+# regularization_parameter = 1.e-3
+regularization_parameter = 1.e-3
 combined_evaluation_matrix = fishy.compute_evaluation_map(combined_parametric_coordinates, expand_map_for_physical=True)
 fitting_matrix = (combined_evaluation_matrix.T).dot(combined_evaluation_matrix) \
     + regularization_parameter*sps.identity(combined_evaluation_matrix.shape[1])
@@ -290,31 +295,34 @@ structural_displacements_b_spline = \
     fishy.space.create_function(name='structural_displacements_b_spline', coefficients=combined_structural_displacements_coefficients)
 
 
-# structural_displacements_magnitude_b_spline = BSpline(
-#     name='structural_displacements_magnitude_b_spline',
-#     space=fishy.space,
-#     coefficients=m3l.norm(structural_displacements_b_spline.coefficients.reshape((-1,3)), axes=(1,)),
-#     num_physical_dimensions=1,
-# )
+structural_displacements_magnitude_b_spline = BSpline(
+    name='structural_displacements_magnitude_b_spline',
+    space=fishy.space,
+    coefficients=m3l.norm(structural_displacements_b_spline.coefficients.reshape((-1,3)), axes=(1,)),
+    num_physical_dimensions=1,
+)
 # fishy.plot(opacity=0.8, color=structural_displacements_magnitude_b_spline)
 
 deformed_fishy = fishy.copy()
 deformed_fishy.coefficients = deformed_fishy.coefficients + structural_displacements_b_spline.coefficients
-deformed_fishy.plot()
-# exit()
+deformed_fishy.plot(color=structural_displacements_magnitude_b_spline)
+# deformed_fishy.plot()
 
-# opposite_deformed_fishy = deformed_fishy.copy()
-# coefficients_shape = opposite_deformed_fishy.space.parametric_coefficients_shape + (3,)
-# # want to flip the z component of the coefficients and invert the ordering of the x component along the 3rd axis of coefficients
-# z_indicies = np.arange(2, np.prod(coefficients_shape[2]), 3)
-# opposite_deformed_fishy.coefficients[z_indicies] = -deformed_fishy.coefficients[z_indicies]
-# for i in range(coefficients_shape[2]):
-#     # set_indices = [:,:,i,0]
-#     # get_indices = [:,:,coefficients_shape[2]-i-1,0]
-#     set_indices = np.arange(i*coefficients_shape[0]*coefficients_shape[1], (i+1)*coefficients_shape[0]*coefficients_shape[1])
-#     get_indices = np.arange((coefficients_shape[2]-i-1)*coefficients_shape[0]*coefficients_shape[1], (coefficients_shape[2]-i)*coefficients_shape[0]*coefficients_shape[1])
-#     opposite_deformed_fishy.coefficients[set_indices] = deformed_fishy.coefficients[get_indices]
-# opposite_deformed_fishy.plot()
+opposite_deformed_fishy = deformed_fishy.copy()
+coefficients_shape = opposite_deformed_fishy.space.parametric_coefficients_shape + (3,)
+indices = np.arange(np.prod(coefficients_shape)).reshape(coefficients_shape)
+# want to flip the z component of the coefficients and invert the ordering of the x component along the 3rd axis of coefficients
+z_indicies = indices[:,:,:,2].reshape((-1,))
+opposite_deformed_fishy.coefficients[z_indicies] = -deformed_fishy.coefficients[z_indicies]
+for i in range(coefficients_shape[2]):
+    # set_indices = [:,:,i,0]
+    # get_indices = [:,:,coefficients_shape[2]-i-1,0]
+    set_indices = indices[:,:,i,0].reshape((-1,))
+    get_indices = indices[:,:,coefficients_shape[2]-i-1,0].reshape((-1,))
+    # set_indices = np.arange(i*coefficients_shape[0]*coefficients_shape[1], (i+1)*coefficients_shape[0]*coefficients_shape[1])
+    # get_indices = np.arange((coefficients_shape[2]-i-1)*coefficients_shape[0]*coefficients_shape[1], (coefficients_shape[2]-i)*coefficients_shape[0]*coefficients_shape[1])
+    opposite_deformed_fishy.coefficients[set_indices] = deformed_fishy.coefficients[get_indices]
+opposite_deformed_fishy.plot(color=structural_displacements_magnitude_b_spline)
 exit()
 
 # endregion -Map Displacements To Geometry

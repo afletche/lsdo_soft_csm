@@ -42,7 +42,7 @@ plotting_points = vedo.Points(mesh_nodes, r=4, c='gold')
 # "Project" the enclosure volume outer surfaces onto the mesh points (find the closest mesh point to each volume outer surface point)
 total_fitting_points = []
 total_fitting_parametric_coordinates = []
-num_fitting_points = (101,51,51)
+num_fitting_points = (121,51,51)
 # -- Back surface
 back_surface_parametric_coordinates_u = np.zeros((num_fitting_points[1]*num_fitting_points[2],))
 back_surface_parametric_coordinates_v = np.einsum('i,j->ij', np.linspace(0., 1., num_fitting_points[1]), np.ones(num_fitting_points[2])).flatten()
@@ -243,10 +243,12 @@ total_fitting_parametric_coordinates = np.column_stack(
 # total_fitting_parametric_coordinates = np.vstack(total_fitting_parametric_coordinates)
 
 # Use the mesh coordinates (now physical and parametric) to fit a B-spline volume
-from lsdo_geo.splines.b_splines.b_spline_functions import fit_b_spline
+from lsdo_geo.splines.b_splines.b_spline_functions import fit_b_spline, plot_volume
+# plot_volume(total_fitting_points.reshape((num_fitting_points[0], num_fitting_points[1], num_fitting_points[2], 3)))
+
 
 fishy = fit_b_spline(fitting_points=total_fitting_points, parametric_coordinates=total_fitting_parametric_coordinates, order=(3,3,3),
-                      num_coefficients=(31,15,15), regularization_parameter=1.e-1)
+                      num_coefficients=(51,15,15), regularization_parameter=1.e-3)  # 1e-1
 fishy.plot()
 
 
@@ -255,7 +257,7 @@ fishy.plot()
 # Save geometry in pickle file so this doesn't have to be redone each run
 import os
 import pickle
-file_name = "examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry.pickle"
+file_name = "examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_fine.pickle"
 # fn = os.path.basename(file_name)
 # fn_wo_ext = fn[:fn.rindex('.')]
 

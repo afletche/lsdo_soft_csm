@@ -1,6 +1,7 @@
 import m3l
 import csdl
 from python_csdl_backend import Simulator
+import numpy as np
 
 from femo.fea.fea_dolfinx import *
 from femo.csdl_opt.fea_model import FEAModel
@@ -85,6 +86,8 @@ def construct_csdl_model(record):
     v = TestFunction(state_function_space)
     B = Constant(domain=mesh, c=(0.0, 0.0, 0.0))  # Body force per unit volume
     T = Constant(domain=mesh, c=(0.0, 0.0, 0.0))  # Traction force on the boundary
+
+    u_last_load_step = Function(state_function_space)
 
     p0 = 0.
     # pump_max_pressure = 0.
@@ -236,7 +239,8 @@ def construct_csdl_model(record):
     pressure_input.x.array[right_chamber_facet_dofs] = pump_max_pressure
 
     # with XDMFFile(MPI.COMM_SELF, "examples/advanced_examples/temp/pressure_input.xdmf", "w") as xdmf:
-    with XDMFFile(MPI.COMM_SELF, output_path + "temp/pressure_input.xdmf", "w") as xdmf:
+    # with XDMFFile(MPI.COMM_SELF, output_path + "pressure_input.xdmf", "w") as xdmf:
+    with XDMFFile(MPI.COMM_SELF, output_path + "test_output.xdmf", "w") as xdmf:
         xdmf.write_mesh(mesh)
         xdmf.write_function(pressure_input)
 
@@ -282,6 +286,7 @@ def construct_csdl_model(record):
                 
 
     # load_stepping_coefficient = 3.5
+    # NOTE: Keep u_old that stores last converged solution (for initialization after load step)
     def static_solve(residual_form, u, ubc, report=False):
         initialize = False
         load_stepping_coefficient = 3
@@ -306,6 +311,8 @@ def construct_csdl_model(record):
             # NOTE: Initialize=True is means that if it fails, it throws out the previous state solution as initial guess (back to 0)
 
             if converged_reason > 0:
+                initialize = False  # Don't reset initial guess to 0 once it starts to converge
+                u_last_load_step.x.array[:] = u.x.array[:]  # Store last converged solution
                 while num_load_steps >= 0:
                     pressure_input.x.array[left_chamber_facet_dofs] = pump_vacuum_pressure/(load_stepping_coefficient**(num_load_steps))
                     pressure_input.x.array[right_chamber_facet_dofs] = pump_max_pressure/(load_stepping_coefficient**(num_load_steps))
@@ -315,8 +322,10 @@ def construct_csdl_model(record):
                         num_load_steps += 1 # take a step back, then subdivide
                         num_load_steps = int(num_load_steps*np.log(load_stepping_coefficient)/np.log(load_stepping_coefficient**(1/1.1))) + 1
                         load_stepping_coefficient**=(1/1.1)
+                        u.x.array[:] = u_last_load_step.x.array[:]  # Reset initial guess to last converged solution
                     else:
                         num_load_steps -= 1
+                        u_last_load_step.x.array[:] = u.x.array[:]  # Store last converged solution
 
                     print('num load steps left: ', num_load_steps)
                     print('load stepping coefficient: ', load_stepping_coefficient)

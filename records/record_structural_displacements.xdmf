@@ -74,62 +74,6 @@
           <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/9</DataItem>
         </Attribute>
       </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="10" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/10</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="11" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/11</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="12" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/12</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="13" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/13</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="14" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/14</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="15" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/15</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="16" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/16</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="f" GridType="Uniform">
-        <xi:include xpointer="xpointer(/Xdmf/Domain/Grid[@GridType='Uniform'][1]/*[self::Topology or self::Geometry])" />
-        <Time Value="17" />
-        <Attribute Name="f" AttributeType="Vector" Center="Node">
-          <DataItem Dimensions="10907 3" Format="HDF">record_structural_displacements.h5:/Function/f/17</DataItem>
-        </Attribute>
-      </Grid>
     </Grid>
   </Domain>
 </Xdmf>
