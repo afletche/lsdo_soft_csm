@@ -1,18 +1,23 @@
 import numpy as np
 t_end = 4.
 p0 = 0.
-pump_max_pressure = 3.5e4
+pump_max_pressure = 1e4
 # pump_max_pressure = 1.e7
 # pump_vacuum_pressure = -1.e3
 pump_vacuum_pressure = 0.
+
+pump_max_pressure = 1.e4
+pump_vacuum_pressure = -1.e4
+
 stroke_index = 0
 actuation_frequency = 0.5 # Hz
 # actuation_frequency = 0.125 # Hz
 stroke_period = 1./actuation_frequency/2    # 2 strokes per cycle
 num_strokes = int(actuation_frequency*t_end)*2+1   # 2 strokes per cycle
 # time_constant = 8*actuation_frequency    # in reality this would be a constant from RC circuit analysis, but I want it to be nice for me.
-time_constant = 6*actuation_frequency    # in reality this would be a constant from RC circuit analysis, but I want it to be nice for me.
+# time_constant = 6*actuation_frequency    # in reality this would be a constant from RC circuit analysis, but I want it to be nice for me.
 # time_constant = 3*actuation_frequency    # in reality this would be a constant from RC circuit analysis, but I want it to be nice for me.
+time_constant = 3
 
 def compute_chamber_pressure_function(t, pressure_inputs, time_constant, p0, evaluation_t):
     if len(t) != len(pressure_inputs):

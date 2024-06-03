@@ -19,12 +19,13 @@ class RoboticFishStaticStructuralModel(m3l.ExplicitOperation):
         csdl_model = construct_csdl_model(record=True)
         return csdl_model
 
-    def evaluate(self, mesh_displacements:m3l.Variable) -> tuple:
+    def evaluate(self, mesh_displacements:m3l.Variable) -> m3l.Variable:
         # self.name = f'robotic_fish_3d_finite_element_model'
 
         self.arguments = {'mesh_displacements':mesh_displacements}
 
-        structural_displacements = m3l.Variable(name='structural_displacements', shape=(10907*3,), operation=self)
+        # structural_displacements = m3l.Variable(name='structural_displacements', shape=(10907*3,), operation=self)
+        structural_displacements = m3l.Variable(name='structural_displacements', shape=(mesh_displacements.value.size,), operation=self)
         # NOTE: SHAPE HARDCODED FOR MESH FOR NOW
         operation_csdl = construct_csdl_model(record=False)
         
@@ -48,22 +49,25 @@ def construct_csdl_model(record):
     output_path = "examples/advanced_examples/robotic_fish/temp/"
     # file_path = 'meshes/'
 
-    with XDMFFile(MPI.COMM_WORLD, file_path + "module_v1.xdmf", "r") as xdmf:
+    # mesh_name = 'module_v1_fine'
+    mesh_name = 'module_v1'
+
+    with XDMFFile(MPI.COMM_WORLD, file_path + mesh_name + ".xdmf", "r") as xdmf:
         mesh = xdmf.read_mesh(name="Grid")
 
     # print(mesh.geometry.input_global_indices)
     # import pickle
-    # file_name = file_path + "module_v1_fenics_mesh_indices.pickle"
+    # file_name = file_path + mesh_name + "_fenics_mesh_indices.pickle"
     # with open(file_name, 'wb+') as handle:
     #     pickle.dump(mesh.geometry.input_global_indices, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
     mesh.topology.create_connectivity(mesh.topology.dim-1, mesh.topology.dim)
-    with XDMFFile(MPI.COMM_WORLD, file_path + "module_v1_left_chamber_inner_surfaces.xdmf", "r") as xdmf:
+    with XDMFFile(MPI.COMM_WORLD, file_path + mesh_name + "_left_chamber_inner_surfaces.xdmf", "r") as xdmf:
         left_chamber_facet_tags = xdmf.read_meshtags(mesh, name="Grid")
 
     mesh.topology.create_connectivity(mesh.topology.dim-1, mesh.topology.dim)
-    with XDMFFile(MPI.COMM_WORLD, file_path + "module_v1_right_chamber_inner_surfaces.xdmf", "r") as xdmf:
+    with XDMFFile(MPI.COMM_WORLD, file_path + mesh_name + "_right_chamber_inner_surfaces.xdmf", "r") as xdmf:
         right_chamber_facet_tags = xdmf.read_meshtags(mesh, name="Grid")
 
     fea = FEA(mesh)
@@ -92,10 +96,13 @@ def construct_csdl_model(record):
     p0 = 0.
     # pump_max_pressure = 0.
     # pump_max_pressure = 1.
-    # pump_max_pressure = 5.e3
-    # pump_max_pressure = 1.e4
+    # pump_max_pressure = 2.e2
+    # pump_max_pressure = 1.e3        # Good for softer fine mesh (optimization)? NOTE: Still haven't gotten robustness through opt for fine mesh
+    # pump_max_pressure = 5.e3      # Good for softer course mesh (optimization or fine model evaluation)
+    # pump_max_pressure = 8.e3
+    pump_max_pressure = 1.e4
     # pump_max_pressure = 2.e4
-    pump_max_pressure = 3.e4
+    # pump_max_pressure = 3.e4
     # pump_max_pressure = 3.5e4
     # pump_max_pressure = 4.e4
     # pump_max_pressure = 5.e4
@@ -109,10 +116,13 @@ def construct_csdl_model(record):
     # pump_max_pressure = 1.e6
     # pump_max_pressure = 1.e7
     # pump_vacuum_pressure = 0.
+    # pump_vacuum_pressure = -2.e2
+    # pump_vacuum_pressure = -1.e3
     # pump_vacuum_pressure = -5.e3
-    # pump_vacuum_pressure = -1.e4
+    # pump_vacuum_pressure = -8.e3
+    pump_vacuum_pressure = -1.e4
     # pump_vacuum_pressure = -2.e4
-    pump_vacuum_pressure = -3.e4
+    # pump_vacuum_pressure = -3.e4
     # pump_vacuum_pressure = -4.e4
     # pump_vacuum_pressure = -5.e4
     # pump_vacuum_pressure = -3.e5
@@ -134,18 +144,36 @@ def construct_csdl_model(record):
     # # E, nu = 10., 0.3
     # E_dragon = 1.5e6  # Young's modulus of dragon skin 30 silicone rubber (Pa) NOTE: Github copilot made this up (is it right?)
     # E_dragon = 1.e5  # Young's modulus of dragon skin 30 silicone rubber (Pa) NOTE: penalized 100% modulus from data sheet
-    E_dragon = 6.e5  # Young's modulus of dragon skin 30 silicone rubber (Pa) NOTE: 100% modulus from data sheet
-    nu_dragon = 0.45  # Poisson's ratio of dragon skin 30 silicone rubber  NOTE: Github copilot made this up (is it right?)
+    # E_dragon = 6.e5  # Young's modulus of dragon skin 30 silicone rubber (Pa) NOTE: 100% modulus from data sheet
+    # nu_dragon = 0.45  # Poisson's ratio of dragon skin 30 silicone rubber  NOTE: Github copilot made this up (is it right?)
+    # Use dragon skin 10 which has a mu of 0.0425 MPa
+    E_dragon = 6.33e4  # Young's modulus of dragon skin 10 silicone rubber (Pa) NOTE: I guessed this to match the mu value (given nu)
+    nu_dragon = 0.49  # Poisson's ratio of dragon skin 10 silicone rubber  NOTE: I guessed this to match the mu value and make it mostly incompressible
+    
+    # E_dragon = 6.15e4  # Young's modulus of dragon skin 10 silicone rubber (Pa) NOTE: I guessed this to match the mu value (given nu)
+    # nu_dragon = 0.45  # Poisson's ratio of dragon skin 10 silicone rubber  NOTE: I guessed this to match the mu value and make it mostly incompressible
+    
+    # E_dragon = 6.2e4  # Young's modulus of dragon skin 10 silicone rubber (Pa) NOTE: I guessed this to match the mu value (given nu)
+    # nu_dragon = 0.48  # Poisson's ratio of dragon skin 10 silicone rubber  NOTE: I guessed this to match the mu value and make it mostly incompressible
+
     # mu, lmbda = Constant(domain=mesh, c=E/(2*(1 + nu))), Constant(domain=mesh, c=E*nu/((1 + nu)*(1 - 2*nu)))
     # E_fr4 = 3.7e9  # Young's modulus of FR-4 (Pa) NOTE: Github copilot made this up (is it right?)
-    E_fr4 = 3.7e8       # Penalized to account for holes in the material
+    # E_fr4 = 3.7e8       # Penalized to account for holes in the material and mesh being thicker
+    # E_fr4 = 3.7e7       # Penalized to account for holes in the material and mesh being thicker
+    E_fr4 = 3.7e6       # Penalized to account for holes in the material and mesh being thicker
     nu_fr4 = 0.35  # Poisson's ratio of FR-4  NOTE: Github copilot made this up (is it right?)
     # NOTE: May need ot penalize fr4 values due to mesh being thicker than 0.015 inches and there being holes in the material.
 
     E = Function(material_properties_function_space)
     nu = Function(material_properties_function_space)
 
-    centerline_tol = 1.5e-3
+    if mesh_name == 'module_v1_fine':
+        centerline_tol = 1.e-3    # fine mesh
+    elif mesh_name == 'module_v1':
+        centerline_tol = 3.e-3    # coarse mesh
+    else:
+        raise Exception('SET A CENTERLINE TOLERANCE FOR THIS MESH')
+    # centerline_tol = 1.5e-3     # Coarse mesh
     # centerline_tol = 1.e-3    # fine mesh
     # centerline_tol = 3.e-3    # OLD GEOMETRY
     # off_centerline_tol = 2.9e-3
@@ -240,17 +268,17 @@ def construct_csdl_model(record):
 
     # with XDMFFile(MPI.COMM_SELF, "examples/advanced_examples/temp/pressure_input.xdmf", "w") as xdmf:
     # with XDMFFile(MPI.COMM_SELF, output_path + "pressure_input.xdmf", "w") as xdmf:
-    with XDMFFile(MPI.COMM_SELF, output_path + "test_output.xdmf", "w") as xdmf:
+    with XDMFFile(MPI.COMM_SELF, output_path + "pressure_input.xdmf", "w") as xdmf:
         xdmf.write_mesh(mesh)
         xdmf.write_function(pressure_input)
 
     # with XDMFFile(MPI.COMM_SELF, "examples/advanced_examples/temp/E.xdmf", "w") as xdmf:
-    with XDMFFile(MPI.COMM_SELF, output_path + "temp/E.xdmf", "w") as xdmf:
+    with XDMFFile(MPI.COMM_SELF, output_path + "E.xdmf", "w") as xdmf:
         xdmf.write_mesh(mesh)
         xdmf.write_function(E)
 
     # with XDMFFile(MPI.COMM_SELF, "examples/advanced_examples/temp/nu.xdmf", "w") as xdmf:
-    with XDMFFile(MPI.COMM_SELF, output_path + "temp/nu.xdmf", "w") as xdmf:
+    with XDMFFile(MPI.COMM_SELF, output_path + "nu.xdmf", "w") as xdmf:
         xdmf.write_mesh(mesh)
         xdmf.write_function(nu)
         # exit()
@@ -289,12 +317,22 @@ def construct_csdl_model(record):
     # NOTE: Keep u_old that stores last converged solution (for initialization after load step)
     def static_solve(residual_form, u, ubc, report=False):
         initialize = False
-        load_stepping_coefficient = 3
+        # load_stepping_coefficient = 3
+        # adaptivity_coefficient = 1.1
+
+        # NOTE: Increase load stepping coefficient if initial convergence takes too long or if it always converges once it starts converging
+        load_stepping_coefficient = 2.
+        
+        # NOTE: This is a subdividing coefficient. 
+        # NOTE: Increase if it takes many passes to converge, decrease if it always converges after the first subdivision
+        # adaptivity_coefficient = 3.
+        adaptivity_coefficient = 2
+        aggressively_adapt = True
         num_load_steps = 0  # always start with no load steps
         # use adaptive load stepping to solve the problem
         pressure_input.x.array[left_chamber_facet_dofs] = pump_vacuum_pressure
         pressure_input.x.array[right_chamber_facet_dofs] = pump_max_pressure
-        converged_reason = solveNonlinear(residual_form, u, ubc, solver="SNES", report=report, initialize=initialize)
+        converged_reason = solveNonlinear(residual_form, u, ubc, solver="SNES", report=report, initialize=False)
 
         if converged_reason > 0:
             return
@@ -307,29 +345,42 @@ def construct_csdl_model(record):
 
             pressure_input.x.array[left_chamber_facet_dofs] = pump_vacuum_pressure/(load_stepping_coefficient**(num_load_steps))
             pressure_input.x.array[right_chamber_facet_dofs] = pump_max_pressure/(load_stepping_coefficient**(num_load_steps))
-            converged_reason = solveNonlinear(residual_form, u, ubc, solver="SNES", report=report, initialize=initialize)
+            converged_reason = solveNonlinear(residual_form, u, ubc, solver="SNES", report=report, initialize=True)
             # NOTE: Initialize=True is means that if it fails, it throws out the previous state solution as initial guess (back to 0)
 
             if converged_reason > 0:
                 initialize = False  # Don't reset initial guess to 0 once it starts to converge
                 u_last_load_step.x.array[:] = u.x.array[:]  # Store last converged solution
                 while num_load_steps >= 0:
-                    pressure_input.x.array[left_chamber_facet_dofs] = pump_vacuum_pressure/(load_stepping_coefficient**(num_load_steps))
-                    pressure_input.x.array[right_chamber_facet_dofs] = pump_max_pressure/(load_stepping_coefficient**(num_load_steps))
-                    converged_reason = solveNonlinear(residual_form, u, ubc, solver="SNES", report=report, initialize=initialize)
-
+                    
                     if converged_reason < 0: # If it fails, subdivide the load step
                         num_load_steps += 1 # take a step back, then subdivide
-                        num_load_steps = int(num_load_steps*np.log(load_stepping_coefficient)/np.log(load_stepping_coefficient**(1/1.1))) + 1
-                        load_stepping_coefficient**=(1/1.1)
+                        # num_load_steps = int(num_load_steps*np.log(load_stepping_coefficient)/np.log(load_stepping_coefficient**(1/adaptivity_coefficient))) + 1
+                        if aggressively_adapt:
+                            # Here we don't guarauntee the load is smaller than the last converged
+                            # The idea is that we should be close enough to the last value to still get convergence though
+                            # num_load_steps = int(num_load_steps*adaptivity_coefficient)
+                            num_load_steps = int(num_load_steps*adaptivity_coefficient) - 1
+                            # NOTE: With integer coefficients, +0 repeats last converged solution unnecessarily
+                        else:
+                            # Here we guarauntee the load is smaller than the last converged but requires more load steps that seem unnecessary
+                            num_load_steps = int(num_load_steps*adaptivity_coefficient) + 1
+                        load_stepping_coefficient**=(1/adaptivity_coefficient)
                         u.x.array[:] = u_last_load_step.x.array[:]  # Reset initial guess to last converged solution
                     else:
+                        if num_load_steps == 0:
+                            return
                         num_load_steps -= 1
                         u_last_load_step.x.array[:] = u.x.array[:]  # Store last converged solution
 
                     print('num load steps left: ', num_load_steps)
                     print('load stepping coefficient: ', load_stepping_coefficient)
                     print('divisor: ', load_stepping_coefficient**(num_load_steps))
+
+                    pressure_input.x.array[left_chamber_facet_dofs] = pump_vacuum_pressure/(load_stepping_coefficient**(num_load_steps))
+                    pressure_input.x.array[right_chamber_facet_dofs] = pump_max_pressure/(load_stepping_coefficient**(num_load_steps))
+                    converged_reason = solveNonlinear(residual_form, u, ubc, solver="SNES", report=report, initialize=False)
+
 
 
         # xdmf_file.write_function(u)
