@@ -1,4 +1,6 @@
 import lsdo_geo
+import lsdo_function_spaces as lfs
+import csdl_alpha as csdl
 import meshio
 import vedo
 import numpy as np
@@ -29,11 +31,11 @@ mesh_nodes = msh.points/1000
 
 # (Optional idea): Create a level-set volume to get the internal geometry information
 
+recorder = csdl.Recorder(inline=True)
+recorder.start()
 
 # Create an enclosure volume around the mesh
-from lsdo_geo.splines.b_splines.b_spline_functions import create_cartesian_enclosure_block
-
-enclosure_volume = create_cartesian_enclosure_block(name='enclosure_volume', points=mesh_nodes, num_coefficients=(21,15,15), order=(3,3,3))
+enclosure_volume = lfs.create_enclosure_block(points=mesh_nodes, num_coefficients=(21,15,15), degree=(2,2,2))
 plotting_volume = enclosure_volume.plot(opacity=0.3, show=False)
 plotting_points = vedo.Points(mesh_nodes, r=4, c='gold')
 # plotter = vedo.Plotter()
@@ -243,12 +245,13 @@ total_fitting_parametric_coordinates = np.column_stack(
 # total_fitting_parametric_coordinates = np.vstack(total_fitting_parametric_coordinates)
 
 # Use the mesh coordinates (now physical and parametric) to fit a B-spline volume
-from lsdo_geo.splines.b_splines.b_spline_functions import fit_b_spline, plot_volume
 # plot_volume(total_fitting_points.reshape((num_fitting_points[0], num_fitting_points[1], num_fitting_points[2], 3)))
 
-
-fishy = fit_b_spline(fitting_points=total_fitting_points, parametric_coordinates=total_fitting_parametric_coordinates, order=(3,3,3),
-                      num_coefficients=(51,15,15), regularization_parameter=1.e-3)  # 1e-1
+fishy_function_space = lfs.BSplineSpace(num_parametric_dimensions=3, degree=(2,2,2), coefficients_shape=(51,15,15))
+fishy = fishy_function_space.fit_function(values=total_fitting_points, parametric_coordinates=total_fitting_parametric_coordinates,
+                                          regularization_parameter=1.e-3)  # 1e-1
+# fishy = fit_b_spline(fitting_points=total_fitting_points, parametric_coordinates=total_fitting_parametric_coordinates, order=(3,3,3),
+#                       num_coefficients=(51,15,15), regularization_parameter=1.e-3)  # 1e-1
 fishy.plot()
 
 

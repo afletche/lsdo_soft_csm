@@ -1,24 +1,20 @@
 import m3l
-import csdl
+import csdl_alpha as csdl
 from python_csdl_backend import Simulator
 import numpy as np
 
-from femo.fea.fea_dolfinx import *
-from femo.csdl_opt.fea_model import FEAModel
-from femo.csdl_opt.state_model import StateModel
-from femo.csdl_opt.output_model import OutputModel
+from femo.fea.fea_dolfinx import XDMFFile, MPI, FEA, VectorFunctionSpace, Function, FunctionSpace, \
+    TestFunction, Constant, grad, Identity, tr, det, inv, J, derivative, dx, ds, dot, solveNonlinear, \
+    locate_entities, locate_dofs_geometrical, locate_dofs_topological, gradx, F, FacetNormal
+import femo
+from femo.csdl_alpha_opt.fea_model import FEAModel
+from femo.csdl_alpha_opt.state_operation import StateOperation
+from femo.csdl_alpha_opt.output_operation import OutputOperation
 import dolfinx.fem as dolfin_fem
 import argparse
 from ufl import ln, pi
 
-class RoboticFishStaticStructuralModel(m3l.ExplicitOperation):
-    def initialize(self, kwargs):
-        self.parameters.declare('name', types=str, default='robotic_fish_3d_finite_element_model')
-
-    def compute(self):
-        csdl_model = construct_csdl_model(record=True)
-        return csdl_model
-
+class RoboticFishStaticStructuralModel:
     def evaluate(self, mesh_displacements:m3l.Variable) -> m3l.Variable:
         # self.name = f'robotic_fish_3d_finite_element_model'
 
@@ -44,7 +40,7 @@ class RoboticFishStaticStructuralModel(m3l.ExplicitOperation):
 
 
 
-def construct_csdl_model(record):
+def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> csdl.Variable:
     file_path = 'examples/advanced_examples/robotic_fish/meshes/'
     output_path = "examples/advanced_examples/robotic_fish/temp/"
     # file_path = 'meshes/'
@@ -72,13 +68,13 @@ def construct_csdl_model(record):
 
     fea = FEA(mesh)
     # Record the function evaluations during optimization process
-    fea.record = record
+    record = False
+    fea.record = record  # TODO: Should this be an argument? It was before.
 
     mesh = fea.mesh
 
     parameterization_displacements_function_space = VectorFunctionSpace(mesh, ("CG", 1))
     u_hat = Function(parameterization_displacements_function_space)
-    desired_u_hat_coefficients = u_hat.x.array[:]
 
     # Add state to the PDE problem:
     state_name = 'structural_displacements'
@@ -93,7 +89,6 @@ def construct_csdl_model(record):
 
     u_last_load_step = Function(state_function_space)
 
-    p0 = 0.
     # pump_max_pressure = 0.
     # pump_max_pressure = 1.
     # pump_max_pressure = 2.e2
@@ -406,9 +401,17 @@ def construct_csdl_model(record):
     fea.PDE_SOLVER = 'Newton'
     # fea.REPORT = True
     fea_model = FEAModel(fea=[fea])
-    fea_model.declare_variable(input_name,
-                                shape=fea.inputs_dict[input_name]['shape'],
-                                val=0.*np.ones(fea.inputs_dict[input_name]['shape']))
+
+    input_group = csdl.VariableGroup()
+    input_group.mesh_displacements = mesh_displacements
+
+    fea_output = fea_model.evaluate(input_group)
+    structural_displacements = fea_output.structural_displacements
+    return structural_displacements
+
+    # fea_model.declare_variable(input_name,
+    #                             shape=fea.inputs_dict[input_name]['shape'],
+    #                             val=0.*np.ones(fea.inputs_dict[input_name]['shape']))
     
     
-    return fea_model
+    # return fea_model
