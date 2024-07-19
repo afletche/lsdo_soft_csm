@@ -14,28 +14,28 @@ import dolfinx.fem as dolfin_fem
 import argparse
 from ufl import ln, pi
 
-class RoboticFishStaticStructuralModel:
-    def evaluate(self, mesh_displacements:m3l.Variable) -> m3l.Variable:
-        # self.name = f'robotic_fish_3d_finite_element_model'
+# class RoboticFishStaticStructuralModel:
+#     def evaluate(self, mesh_displacements:m3l.Variable) -> m3l.Variable:
+#         # self.name = f'robotic_fish_3d_finite_element_model'
 
-        self.arguments = {'mesh_displacements':mesh_displacements}
+#         self.arguments = {'mesh_displacements':mesh_displacements}
 
-        # structural_displacements = m3l.Variable(name='structural_displacements', shape=(10907*3,), operation=self)
-        structural_displacements = m3l.Variable(name='structural_displacements', shape=(mesh_displacements.value.size,), operation=self)
-        # NOTE: SHAPE HARDCODED FOR MESH FOR NOW
-        operation_csdl = construct_csdl_model(record=False)
+#         # structural_displacements = m3l.Variable(name='structural_displacements', shape=(10907*3,), operation=self)
+#         structural_displacements = m3l.Variable(name='structural_displacements', shape=(mesh_displacements.value.size,), operation=self)
+#         # NOTE: SHAPE HARDCODED FOR MESH FOR NOW
+#         operation_csdl = construct_csdl_model(record=False)
         
-        # create csdl model for in-line evaluations
-        sim = Simulator(operation_csdl)
-        sim['mesh_displacements'] = mesh_displacements.value
-        sim.run()
-        structural_displacements.value = sim['structural_displacements']
+#         # create csdl model for in-line evaluations
+#         sim = Simulator(operation_csdl)
+#         sim['mesh_displacements'] = mesh_displacements.value
+#         sim.run()
+#         structural_displacements.value = sim['structural_displacements']
 
-        # with XDMFFile(MPI.COMM_SELF, output_path + "mesh_displacements.xdmf", "w") as xdmf:
-        #     xdmf.write_mesh(mesh)
-        #     xdmf.write_function(u_hat)
+#         # with XDMFFile(MPI.COMM_SELF, output_path + "mesh_displacements.xdmf", "w") as xdmf:
+#         #     xdmf.write_mesh(mesh)
+#         #     xdmf.write_function(u_hat)
 
-        return structural_displacements
+#         return structural_displacements
 
 
 
@@ -68,7 +68,7 @@ def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> cs
 
     fea = FEA(mesh)
     # Record the function evaluations during optimization process
-    record = False
+    record = True
     fea.record = record  # TODO: Should this be an argument? It was before.
 
     mesh = fea.mesh
@@ -95,7 +95,9 @@ def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> cs
     # pump_max_pressure = 1.e3        # Good for softer fine mesh (optimization)? NOTE: Still haven't gotten robustness through opt for fine mesh
     # pump_max_pressure = 5.e3      # Good for softer course mesh (optimization or fine model evaluation)
     # pump_max_pressure = 8.e3
-    pump_max_pressure = 1.e4
+    # pump_max_pressure = 1.e3
+    # pump_max_pressure = 5.e3
+    pump_max_pressure = 1.e4    # Was using this a lot
     # pump_max_pressure = 2.e4
     # pump_max_pressure = 3.e4
     # pump_max_pressure = 3.5e4
@@ -110,12 +112,13 @@ def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> cs
     # pump_max_pressure = 6.e5
     # pump_max_pressure = 1.e6
     # pump_max_pressure = 1.e7
+    pump_vacuum_pressure = -pump_max_pressure
     # pump_vacuum_pressure = 0.
     # pump_vacuum_pressure = -2.e2
     # pump_vacuum_pressure = -1.e3
     # pump_vacuum_pressure = -5.e3
     # pump_vacuum_pressure = -8.e3
-    pump_vacuum_pressure = -1.e4
+    # pump_vacuum_pressure = -1.e4
     # pump_vacuum_pressure = -2.e4
     # pump_vacuum_pressure = -3.e4
     # pump_vacuum_pressure = -4.e4
@@ -211,7 +214,7 @@ def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> cs
     def elastic_term(u_weighted):
         psi = (mu/2)*(Ic - 3) - mu*ln(jacobian) + (lmbda/2)*(ln(jacobian))**2
         # Total potential energy
-        Pi = psi*J(u_hat)*dx - dot(B, u_weighted)*J(u_hat)*dx - dot(T, u_weighted)*ds
+        Pi = psi*J(u_hat)*dx # - dot(B, u_weighted)*J(u_hat)*dx - dot(T, u_weighted)*ds
         # Compute first variation of Pi (directional derivative about u in the direction of v)
         elastic_forces = derivative(Pi, u, v)     # This is a force term
         # NOTE: Want derivative wrt u_weighted, but not possible in FEniCSx, so take derivative wrt u instead and multiply by 1/alpha_f to cancel chain rule
@@ -236,17 +239,26 @@ def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> cs
                                 # lambda x: np.isclose(x[0], 0. ,atol=1e-6))
                                 lambda x: np.isclose(x[0], 0.08 ,atol=1e-6))
 
+    midplane_dofs = locate_dofs_geometrical(state_function_space,
+                                lambda x: np.isclose(x[0], 0.04 ,atol=1e-6) )# Want no displacement at x=0
+    
+    # midplane_dofs = locate_dofs_geometrical((state_function_space.sub(0), state_function_space.sub(0).collapse()[0]),
+    #                                         lambda x: np.isclose(x[0], 0.04 ,atol=1e-6))# Want no x displacement at x=0
+    
     midpoint_dof = locate_dofs_geometrical(state_function_space,
-                                # lambda x: np.isclose(x[0], -0.335 ,atol=1e-6))  # Want no displacement at x=0
-                                # lambda x: np.isclose(x[0], -0.135 ,atol=1e-6))  # Want no displacement at x=0 # Old geometry
                                 lambda x: np.logical_and(
                                     np.logical_and(
                                     np.isclose(x[0], 0.04 ,atol=1e-6),
                                     np.isclose(x[1], 0. ,atol=1e-6)),
                                     np.isclose(x[2], 0. ,atol=1e-6)))  # Want no displacement at x=0
+    
+    print('midplane_dofs', midplane_dofs)
+    print('midpoint_dof', midpoint_dof)
+    # exit()
 
-    fea.add_strong_bc(ubc_1, [front_wall_dofs])
-    # fea.add_strong_bc(ubc_1, [midpoint_dof])
+    # fea.add_strong_bc(ubc_1, [front_wall_dofs])
+    fea.add_strong_bc(ubc_1, [midplane_dofs])
+    # fea.add_strong_bc(ubc_1, [list(midplane_dofs[1])])
 
 
     pressure_input = Function(input_function_space)
@@ -281,7 +293,11 @@ def robotic_fish_static_structural_model(mesh_displacements:csdl.Variable) -> cs
 
     n = FacetNormal(mesh)
     # transform normal and area element by Nanson's formula:
-    dsx_dsy_n_x = J(u_hat)*inv(F(u_hat).T)*n
+    F_test = I + grad(u_hat) + grad(u)
+    J_test = det(F_test)
+
+    dsx_dsy_n_x = J_test*inv(F_test.T)*n
+    # dsx_dsy_n_x = J(u_hat)*inv(F(u_hat).T)*n
     # norm_dsx_dsy_n_x = ufl.sqrt(ufl.dot(dsx_dsy_n_x, dsx_dsy_n_x))
 
     # internal_pressure_forces = pressure_input*dot(v,n)*ds

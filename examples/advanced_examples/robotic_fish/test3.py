@@ -147,10 +147,67 @@ import matplotlib.pyplot as plt
 # plt.plot(t_test, -right_chamber_pressure_vector(t_test))
 # plt.show()
 
-plt.plot(evaluation_t, left_chamber_pressure_values/1.e3, label='Left chamber')
-plt.plot(evaluation_t, right_chamber_pressure_values/1.e3, label='Right chamber')
-plt.xlabel('Time (s)')
-plt.ylabel('Pressure (kPa)')
-plt.legend()
-plt.title('Chamber pressures')
-plt.show()
+kpa_to_psi = 0.145038
+
+# plt.plot(evaluation_t, left_chamber_pressure_values/1.e3*kpa_to_psi, label='Left chamber')
+# plt.plot(evaluation_t, right_chamber_pressure_values/1.e3*kpa_to_psi, label='Right chamber')
+# plt.xlabel('Time (s)')
+# plt.ylabel('Pressure (psi)')
+# plt.legend()
+# plt.title('Chamber pressures')
+# plt.show()
+
+import matplotlib.cm as cm
+import matplotlib.animation as animation
+
+# Make a video from the chamber pressures and add a marker to track the current value
+# num_frames = 100
+# frames = []
+# fig = plt.figure()
+# for i in range(num_frames):
+#     img = plt.imshow((evaluation_t, left_chamber_pressure_values/1.e3*kpa_to_psi), animated=True)
+#     frames.append([img])
+
+# video = animation.ArtistAnimation(fig, frames, interval=50, blit=True, repeat_delay=1000)
+
+# video.show()
+# video.save('chamber_pressures.mp4')
+      
+
+# num_frames = 100
+frames = []
+for i in range(len(evaluation_t)//2):
+    # fig, ax = plt.subplots()
+    plt.figure()
+    plt.plot(evaluation_t, left_chamber_pressure_values/1.e3*kpa_to_psi, label='Left chamber')
+    plt.plot(evaluation_t, right_chamber_pressure_values/1.e3*kpa_to_psi, label='Right chamber')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Gauge Pressure (psi)')
+    plt.legend()
+    plt.title('Chamber pressures')
+    plt.plot(evaluation_t[i*2], left_chamber_pressure_values[i*2]/1.e3*kpa_to_psi, 'ro')
+    plt.plot(evaluation_t[i*2], right_chamber_pressure_values[i*2]/1.e3*kpa_to_psi, 'ro')
+
+    plt.savefig('examples/advanced_examples/robotic_fish/images/chamber_pressures_{}.png'.format(i))
+    plt.close()
+
+import cv2
+import os
+
+image_folder = 'examples/advanced_examples/robotic_fish/images'
+video_name = 'examples/advanced_examples/robotic_fish/chamber_pressures.avi'
+
+# images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
+images = []
+for i in range(len(evaluation_t)//2):
+    images.append('chamber_pressures_{}.png'.format(i))
+frame = cv2.imread(os.path.join(image_folder, images[0]))
+height, width, layers = frame.shape
+
+video = cv2.VideoWriter(video_name, 0, len(evaluation_t)//2/4, (width,height))
+
+for image in images:
+    video.write(cv2.imread(os.path.join(image_folder, image)))
+
+cv2.destroyAllWindows()
+video.release()

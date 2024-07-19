@@ -6,8 +6,8 @@ import numpy as np
 import m3l
 import vedo
 import python_csdl_backend
-from modopt.scipy_library import SLSQP
-from modopt.csdl_library import CSDLProblem
+# from modopt.scipy_library import SLSQP
+# from modopt.csdl_library import CSDLProblem
 
 from lsdo_geo.core.parameterization.parameterization_solver import ParameterizationSolver
 from lsdo_geo.core.parameterization.free_form_deformation_functions import construct_ffd_block_around_entities
@@ -39,7 +39,7 @@ Subject to:
 
 # region Import and Setup
 def import_geometry() -> BSpline:
-    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry.pickle", 'rb') as handle:
+    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_fine.pickle", 'rb') as handle:
         fishy = pickle.load(handle)
         return fishy
 
@@ -424,13 +424,13 @@ system_model.add_objective(objective, scaler=1.e1)
 csdl_model = system_model.assemble()
 sim = python_csdl_backend.Simulator(csdl_model, display_scripts=True)
 
-# import time
-# t1 = time.time()
-# sim.run()
-# t2 = time.time()
-# print('Elapsed Time: ', t2 - t1)
-# sim.check_totals()
-# exit()
+import time
+t1 = time.time()
+sim.run()
+t2 = time.time()
+print('Elapsed Time: ', t2 - t1)
+sim.check_totals()
+exit()
 
 # height_values = np.linspace(0.04, 0.09, 20)
 # angle = np.zeros_like(height_values)

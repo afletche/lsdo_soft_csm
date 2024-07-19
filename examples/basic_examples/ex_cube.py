@@ -5,7 +5,6 @@ import lsdo_soft_csm
 import pickle
 import meshio
 import numpy as np
-import m3l
 from modopt import SLSQP
 from modopt import CSDLAlphaProblem
 import vedo
@@ -35,22 +34,19 @@ recorder = csdl.Recorder(inline=True)
 recorder.start()
 
 # region Import and Setup
-def import_geometry() -> lfs.Function:
-    with open("examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_fine.pickle", 'rb') as handle:
-        fishy = pickle.load(handle)
-        fishy.coefficients = csdl.Variable(value=fishy.coefficients.value, name='fishy_coefficients')   # Remake variables because can't pickle variables
-        return fishy
+geometry_space = lfs.BSplineSpace(num_parametric_dimensions=3, degree=(2,2,2), coefficients_shape=(3,3,3))
+coefficients_z, coefficients_y, coefficients_x = np.meshgrid(np.linspace(-1.27, 1.27, 3), np.linspace(-1.27, 1.27, 3), np.linspace(-1.27, 1.27, 3))
+coefficients = np.array([coefficients_z.flatten(), coefficients_y.flatten(), coefficients_x.flatten()]).T
+coefficients = csdl.Variable(value=coefficients, name='cube_coefficients')
+cube = lfs.Function(space=geometry_space, coefficients=coefficients, name='cube')
+# cube.plot()
 
-fishy = import_geometry()
-fishy.name = 'fishy'
-
-# fishy.plot(opacity=0.3)
+# cube.plot(opacity=0.3)
 # region -Structural Mesh Projection
-mesh_file_path = "examples/advanced_examples/robotic_fish/meshes/"
-# mesh_name = "module_v1_fine"
-mesh_name = "module_v1"
+mesh_file_path = "examples/example_geometries/"
+mesh_name = "cube_14_node_mesh"
 structural_mesh = meshio.read(mesh_file_path + mesh_name + ".msh")
-structural_mesh_nodes = structural_mesh.points/1000 + np.array([0.04, 0, 0.])   # Shift the mesh to the right to make it the middle module
+structural_mesh_nodes = structural_mesh.points/10
 structural_elements = structural_mesh.cells_dict['tetra']
 
 # vedo_mesh = vedo.Mesh([structural_mesh_nodes, structural_elements]).wireframe()
@@ -88,36 +84,35 @@ for i in range(structural_elements.shape[0]):
 structural_mesh_nodes = reordered_structural_mesh_nodes
 structural_elements = reordered_structural_elements
 
-structural_mesh_parametric = fishy.project(points=structural_mesh_nodes, grid_search_density_parameter=4., plot=False)
+structural_mesh_parametric = cube.project(points=structural_mesh_nodes, grid_search_density_parameter=4., plot=False)
 # Plot projection result
-# fishy_plot = fishy.plot(show=False, opacity=0.3)
-# structural_mesh_node_values = fishy.evaluate(structural_mesh_parametric).value
+# cube_plot = cube.plot(show=False, opacity=0.3)
+# structural_mesh_node_values = cube.evaluate(structural_mesh_parametric).value
 # vedo_mesh = vedo.Mesh([structural_mesh_node_values, structural_elements]).wireframe()
 # plotter = vedo.Plotter()
-# plotter.show([fishy_plot, vedo_mesh], axes=1, viewup='y')
+# plotter.show([cube_plot, vedo_mesh], axes=1, viewup='y')
 
 
-structural_module_front_parametric = fishy.project(points=np.array([[0.08 + 0.04, 0., 0.]]), plot=False)
-structural_module_mid_parametric = fishy.project(points=np.array([[0.04 + 0.04, 0., 0.]]), plot=False)
-structural_mesh_nodes = fishy.evaluate(structural_mesh_parametric).value.reshape((-1,3))
+structural_module_front_parametric = cube.project(points=np.array([[-1.27, 0., 0.]]), plot=False)
+structural_mesh_nodes = cube.evaluate(structural_mesh_parametric).value.reshape((-1,3))
 # endregion -Structural Mesh Projection
 
 # region -Projections for Design Variables (Parameterization Solver Inputs)
-fishy_nose_parametric = fishy.project(points=np.array([[0.3, 0., 0.]]), plot=False)
-fishy_tail_tip_parametric = fishy.project(points=np.array([[-0.2, 0., 0.]]), plot=False)
+cube_nose_parametric = cube.project(points=np.array([[-1.27, 0., 0.]]), plot=False)
+cube_tail_tip_parametric = cube.project(points=np.array([[1.27, 0., 0.]]), plot=False)
 
-fishy_left_parametric = fishy.project(points=np.array([[0., 0., -0.05]]), plot=False)
-fishy_right_parametric = fishy.project(points=np.array([[0., 0., 0.05]]), plot=False)
+cube_left_parametric = cube.project(points=np.array([[0., -1.27, 0.]]), plot=False)
+cube_right_parametric = cube.project(points=np.array([[0., 1.27, 0.]]), plot=False)
 
-fishy_top_parametric = fishy.project(points=np.array([[0., 0.1, 0.]]), plot=False)
-fishy_bottom_parametric = fishy.project(points=np.array([[0., -0.09, 0.]]), plot=False)
+cube_bottom_parametric = cube.project(points=np.array([[0., 0., -1.27]]), plot=False)
+cube_top_parametric = cube.project(points=np.array([[0., 0., 1.27]]), plot=False)
 # endregion -Projections for Design Variables (Parameterization Solver Inputs)
 # endregion Import and Setup
 
 # region Geometry Parameterization
 # region -Create Parameterization Objects
 num_ffd_sections = 2
-ffd_block = lsdo_geo.construct_ffd_block_around_entities(entities=fishy, num_coefficients=(num_ffd_sections,2,2), degree=(1,1,1))
+ffd_block = lsdo_geo.construct_ffd_block_around_entities(entities=cube, num_coefficients=(num_ffd_sections,2,2), degree=(1,1,1))
 # ffd_block.plot()
 
 ffd_sectional_parameterization = lsdo_geo.VolumeSectionalParameterization(
@@ -126,13 +121,13 @@ ffd_sectional_parameterization = lsdo_geo.VolumeSectionalParameterization(
     parameterized_points_shape=ffd_block.coefficients.shape,
     name='ffd_sectional_parameterization',
 )
-# plotting_elements = fishy.plot(show=False, opacity=0.3, color='#FFCD00')
+# plotting_elements = cube.plot(show=False, opacity=0.3, color='#FFCD00')
 
 linear_2_dof_space = lfs.BSplineSpace(num_parametric_dimensions=1, degree=1, coefficients_shape=(2,))
 constant_1_dof_space = lfs.BSplineSpace(num_parametric_dimensions=1, degree=0, coefficients_shape=(1,))
 
 
-length_sectional_translations_b_spline_coefficients = csdl.ImplicitVariable(
+length_sectional_translations_b_spline_coefficients = csdl.Variable(
     name='length_delta_translations_b_spline_coefficients',
     value=np.array([-0., 0.]),
 )
@@ -142,8 +137,8 @@ length_sectional_translations_b_spline_parameterization = lfs.Function(
     coefficients=length_sectional_translations_b_spline_coefficients,
 )
 
-sectional_delta_width = csdl.ImplicitVariable(value=-0., name='sectional_delta_width')
-sectional_delta_height = csdl.ImplicitVariable(value=0., name='sectional_delta_height')
+sectional_delta_width = csdl.Variable(value=-0., name='sectional_delta_width')
+sectional_delta_height = csdl.Variable(value=0., name='sectional_delta_height')
 
 # endregion -Create Parameterization Objects
 
@@ -160,33 +155,33 @@ ffd_sectional_parameterization_inputs.add_sectional_stretch(axis=2, stretch=sect
 ffd_sectional_parameterization_inputs.add_sectional_stretch(axis=1, stretch=sectional_heights)
 ffd_block_coefficients = ffd_sectional_parameterization.evaluate(ffd_sectional_parameterization_inputs, plot=False)
 
-fishy_coefficients = ffd_block.evaluate(coefficients=ffd_block_coefficients, plot=False)
+cube_coefficients = ffd_block.evaluate(coefficients=ffd_block_coefficients, plot=False)
 
-fishy.coefficients = fishy_coefficients
-# fishy.plot()
+cube.coefficients = cube_coefficients
+# cube.plot()
 
 
 # endregion -Evaluate Parameterization For Solver
 
 # region -Evaluate Parameterization Solver
 # region -Evaluate Parameterization Solver Inputs
-fishy_nose = fishy.evaluate(fishy_nose_parametric)
-fishy_tail_tip = fishy.evaluate(fishy_tail_tip_parametric)
-computed_fishy_length = csdl.norm(fishy_nose - fishy_tail_tip)
+cube_nose = cube.evaluate(cube_nose_parametric)
+cube_tail_tip = cube.evaluate(cube_tail_tip_parametric)
+computed_cube_length = csdl.norm(cube_nose - cube_tail_tip)
 
-fishy_left = fishy.evaluate(fishy_left_parametric)
-fishy_right = fishy.evaluate(fishy_right_parametric)
-computed_fishy_width = csdl.norm(fishy_left - fishy_right)
+cube_left = cube.evaluate(cube_left_parametric)
+cube_right = cube.evaluate(cube_right_parametric)
+computed_cube_width = csdl.norm(cube_left - cube_right)
 
-fishy_top = fishy.evaluate(fishy_top_parametric)
-fishy_bottom = fishy.evaluate(fishy_bottom_parametric)
-computed_fishy_height = csdl.norm(fishy_top - fishy_bottom)
+cube_top = cube.evaluate(cube_top_parametric)
+cube_bottom = cube.evaluate(cube_bottom_parametric)
+computed_cube_height = csdl.norm(cube_top - cube_bottom)
 # endregion -Evaluate Parameterization Solver Inputs
 
 # region Geometric Design Variables
-length = csdl.Variable(value=computed_fishy_length.value, name='length')
-width = csdl.Variable(value=computed_fishy_width.value, name='width')
-height = csdl.Variable(value=computed_fishy_height.value, name='height')
+length = csdl.Variable(value=computed_cube_length.value, name='length')
+width = csdl.Variable(value=computed_cube_width.value, name='width')
+height = csdl.Variable(value=computed_cube_height.value, name='height')
 
 # length = csdl.Variable(value=1.1, name='length')
 # width = csdl.Variable(value=0.02, name='width')
@@ -201,38 +196,34 @@ geometry_parameterization_solver.add_parameter(sectional_delta_width)
 geometry_parameterization_solver.add_parameter(sectional_delta_height)
 
 geometric_parameterization_variables = lsdo_geo.GeometricVariables()
-geometric_parameterization_variables.add_variable(computed_fishy_length, length)
-geometric_parameterization_variables.add_variable(computed_fishy_width, width)
-geometric_parameterization_variables.add_variable(computed_fishy_height, height)
+geometric_parameterization_variables.add_variable(computed_cube_length, length)
+geometric_parameterization_variables.add_variable(computed_cube_width, width)
+geometric_parameterization_variables.add_variable(computed_cube_height, height)
 
 geometry_parameterization_solver.evaluate(geometric_variables=geometric_parameterization_variables)
 
-# fishy.plot()
+# cube.plot()
 # exit()
 # endregion Geometry Parameterization
 
 # region Evaluate Meshes
 # - Evaluate Structural Mesh
-structural_mesh = fishy.evaluate(structural_mesh_parametric).reshape((-1,3))
+structural_mesh = cube.evaluate(structural_mesh_parametric).reshape((-1,3))
 
 # - Shift structural mesh displacements so there is no displacement at the fixed BC
-front_point_in_structural_solver = csdl.Variable(value=np.array([0.08 + 0.04, 0., 0.]))
+front_point_in_structural_solver = csdl.Variable(value=np.array([-1.27, 0., 0.]))
 front_point_in_structural_solver_expanded = csdl.expand(front_point_in_structural_solver, structural_mesh.shape, 'i->ji')
-mid_point_in_structural_solver = csdl.Variable(value=np.array([0.04 + 0.04, 0., 0.]))
-mid_point_in_structural_solver_expanded = csdl.expand(mid_point_in_structural_solver, structural_mesh.shape, 'i->ji')
-current_front_point = fishy.evaluate(structural_module_front_parametric)
+current_front_point = cube.evaluate(structural_module_front_parametric)
 current_front_point_expanded = csdl.expand(current_front_point, structural_mesh.shape, 'i->ji')
-current_mid_point = fishy.evaluate(structural_module_mid_parametric)
-current_mid_point_expanded = csdl.expand(current_mid_point, structural_mesh.shape, 'i->ji')
-# structural_mesh_displacements = structural_mesh - structural_mesh_nodes + front_point_in_structural_solver_expanded - current_front_point_expanded
-structural_mesh_displacements = structural_mesh - structural_mesh_nodes + mid_point_in_structural_solver_expanded - current_mid_point_expanded
+
+structural_mesh_displacements = structural_mesh - structural_mesh_nodes + front_point_in_structural_solver_expanded - current_front_point_expanded
 structural_mesh_displacements = structural_mesh_displacements.flatten()
 
 # endregion Evaluate Meshes
 # endregion Geoemetry Parameterization
 
 # region Structural Solver
-structural_displacements_flattened = lsdo_soft_csm.robotic_fish_static_structural_model(structural_mesh_displacements)
+structural_displacements_flattened = lsdo_soft_csm.cube_static_structural_model(structural_mesh_displacements)
 structural_displacements = structural_displacements_flattened.reshape((structural_displacements_flattened.size//3,3))
 
 displaced_mesh = structural_mesh + structural_displacements
@@ -240,122 +231,81 @@ displaced_mesh = structural_mesh + structural_displacements
 initial_displaced_mesh = displaced_mesh.value
 
 # Plot structural solver result
-fishy_plot = fishy.plot(show=False, opacity=0.3)
+cube_plot = cube.plot(show=False, opacity=0.3)
 vedo_mesh = vedo.Mesh([displaced_mesh.value, structural_elements]).wireframe()
 plotter = vedo.Plotter()
-plotter.show([fishy_plot, vedo_mesh], axes=1, viewup='y')
+plotter.show([cube_plot, vedo_mesh], axes=1, viewup='y')
 
 # endregion Structural Solver
 
 # region Fit B-Spline to Displacements and Construct Deformed Geometry
 displacement_space = lfs.BSplineSpace(
     num_parametric_dimensions=3,
-    degree=(2,2,2),
-    coefficients_shape=(5,3,3))
+    degree=(1,1,1),
+    coefficients_shape=(2,2,2))
 
-mesh_parametric_coordinates_in_displacement_space = structural_mesh_parametric.copy()
-module_2_min_u = np.min(mesh_parametric_coordinates_in_displacement_space[:,0]) # Use the mesh projections to guarantee mesh is in module bounds
-module_2_max_u = np.max(mesh_parametric_coordinates_in_displacement_space[:,0])
-for i, old_u in enumerate(structural_mesh_parametric[:,0]):
-    new_u = (old_u - module_2_min_u)/(module_2_max_u - module_2_min_u)
-    mesh_parametric_coordinates_in_displacement_space[i,0] = new_u
-
-structural_displacements_b_spline = displacement_space.fit_function(structural_displacements,
-                                                                    parametric_coordinates=mesh_parametric_coordinates_in_displacement_space)
-
-deformed_module = displacement_space.fit_function(structural_mesh + structural_displacements, 
-                                                  parametric_coordinates=mesh_parametric_coordinates_in_displacement_space)
-# deformed_module.plot()
+deformed_cube = displacement_space.fit_function(structural_mesh + structural_displacements, 
+                                                  parametric_coordinates=structural_mesh_parametric)
+deformed_cube.plot()
 # exit()
 
-# displacement_evaluation_map = displacement_space.compute_basis_matrix(mesh_parametric_coordinates_in_displacement_space, expand_map_for_physical=True)
-# fitting_matrix = (displacement_evaluation_map.T).dot(displacement_evaluation_map) 
-#                 # + regularization_parameter*sps.identity(displacement_evaluation_map.shape[1])
-# fitting_rhs = m3l.matvec(displacement_evaluation_map.T.tocsc(), structural_displacements_flattened)
-# structural_displacements_coefficients = m3l.solve(fitting_matrix, fitting_rhs)
-
-# structural_displacements_b_spline = BSpline(
-#     name='structural_displacements_b_spline',
-#     space=displacement_space,
-#     coefficients=structural_displacements_coefficients,
-#     num_physical_dimensions=3,
-# )
-# structural_displacements_b_spline.plot()
-
-coefficients_parametric = fishy.project(points=fishy.coefficients, grid_search_density_parameter=5., plot=False)
-points_in_module_2_indices = list(np.where((coefficients_parametric[:,0] <= module_2_max_u) & (coefficients_parametric[:,0] >= module_2_min_u))[0])
-# coefficient_indices = np.arange(fishy.coefficients.value.size).reshape((-1,3))
-
-deformed_fishy = fishy.copy()
-# for coefficients in module, evaluate displacements at corresponding location and add them to the current coefficients
-coefficients_parametric_in_module = coefficients_parametric[points_in_module_2_indices,:]
-coefficients_parametric_in_module[:,0] = (coefficients_parametric_in_module[:,0] - module_2_min_u)/(module_2_max_u - module_2_min_u)
-deformations_in_module = structural_displacements_b_spline.evaluate(coefficients_parametric_in_module)
-# NOTE: For line above, a temporary structural displacement B-spline will have to be created for each time step. (where it's coefficients change)
-# indices = list(coefficient_indices[points_in_module_2_indices].reshape((-1)))
-deformed_fishy.coefficients = deformed_fishy.coefficients.set(csdl.slice[points_in_module_2_indices], 
-                                                              fishy.coefficients[points_in_module_2_indices] + deformations_in_module)
-
-# deformed_fishy.plot()
-# exit()
-
-derivative_at_module_edge1 = deformed_module.evaluate(np.array([[0., 0.5, 0.5]]), parametric_derivative_orders=(1,0,0))
+derivative_at_module_edge1 = deformed_cube.evaluate(np.array([[0., 0.5, 0.5]]), parametric_derivative_orders=(1,0,0))
 derivative_at_module_edge = derivative_at_module_edge1/csdl.norm(derivative_at_module_edge1)    # normalize
-module_edge = deformed_module.evaluate(np.array([[0., 0.5, 0.5]]))
+module_edge = deformed_cube.evaluate(np.array([[0., 0.5, 0.5]]))
 # endregion Fit B-Spline to Displacements and Construct Deformed Geometry
 
-# region Compute Surface Area
-num_elements_per_dimension = 50
-parametric_mesh_2, parametric_mesh_1 = \
-    np.meshgrid(np.linspace(0., 1., num_elements_per_dimension), np.linspace(0., 1., num_elements_per_dimension))
-# parametric_grid_1 = np.zeros((num_elements_per_dimension**2, 3))
-# parametric_grid_2 = np.zeros((num_elements_per_dimension**2, 3))
-# parametric_grid_3 = np.zeros((num_elements_per_dimension**2, 3))
-# parametric_grid_4 = np.zeros((num_elements_per_dimension**2, 3))
-parametric_grid_5 = np.zeros((num_elements_per_dimension, num_elements_per_dimension, 3))
-parametric_grid_6 = np.zeros((num_elements_per_dimension, num_elements_per_dimension, 3))
+# # region Compute Surface Area
+# num_elements_per_dimension = 50
+# parametric_mesh_2, parametric_mesh_1 = \
+#     np.meshgrid(np.linspace(0., 1., num_elements_per_dimension), np.linspace(0., 1., num_elements_per_dimension))
+# # parametric_grid_1 = np.zeros((num_elements_per_dimension**2, 3))
+# # parametric_grid_2 = np.zeros((num_elements_per_dimension**2, 3))
+# # parametric_grid_3 = np.zeros((num_elements_per_dimension**2, 3))
+# # parametric_grid_4 = np.zeros((num_elements_per_dimension**2, 3))
+# parametric_grid_5 = np.zeros((num_elements_per_dimension, num_elements_per_dimension, 3))
+# parametric_grid_6 = np.zeros((num_elements_per_dimension, num_elements_per_dimension, 3))
 
-# parametric_grid_1[:,1] = parametric_mesh_1.flatten()
-# parametric_grid_1[:,2] = parametric_mesh_2.flatten()
-# parametric_grid_2[:,0] = np.ones_like(parametric_mesh_1.flatten())
-# parametric_grid_2[:,1] = parametric_mesh_1.flatten()
-# parametric_grid_2[:,2] = parametric_mesh_2.flatten()
-# parametric_grid_3[:,0] = parametric_mesh_1.flatten()
-# # parametric_grid_3[:,1] = np.zeros(parametric_mesh_1.flatten().shape)
-# parametric_grid_3[:,2] = parametric_mesh_2.flatten()
-# parametric_grid_4[:,0] = parametric_mesh_1.flatten()
-# parametric_grid_4[:,1] = np.ones_like(parametric_mesh_1.flatten())
-# parametric_grid_4[:,2] = parametric_mesh_2.flatten()
-parametric_grid_5[:,:,0] = parametric_mesh_1
-parametric_grid_5[:,:,1] = parametric_mesh_2
-parametric_grid_6[:,:,0] = parametric_mesh_1
-parametric_grid_6[:,:,1] = parametric_mesh_2
-parametric_grid_6[:,:,2] = np.ones_like(parametric_mesh_1)
+# # parametric_grid_1[:,1] = parametric_mesh_1.flatten()
+# # parametric_grid_1[:,2] = parametric_mesh_2.flatten()
+# # parametric_grid_2[:,0] = np.ones_like(parametric_mesh_1.flatten())
+# # parametric_grid_2[:,1] = parametric_mesh_1.flatten()
+# # parametric_grid_2[:,2] = parametric_mesh_2.flatten()
+# # parametric_grid_3[:,0] = parametric_mesh_1.flatten()
+# # # parametric_grid_3[:,1] = np.zeros(parametric_mesh_1.flatten().shape)
+# # parametric_grid_3[:,2] = parametric_mesh_2.flatten()
+# # parametric_grid_4[:,0] = parametric_mesh_1.flatten()
+# # parametric_grid_4[:,1] = np.ones_like(parametric_mesh_1.flatten())
+# # parametric_grid_4[:,2] = parametric_mesh_2.flatten()
+# parametric_grid_5[:,:,0] = parametric_mesh_1
+# parametric_grid_5[:,:,1] = parametric_mesh_2
+# parametric_grid_6[:,:,0] = parametric_mesh_1
+# parametric_grid_6[:,:,1] = parametric_mesh_2
+# parametric_grid_6[:,:,2] = np.ones_like(parametric_mesh_1)
 
-# parametric_grids = [parametric_grid_1, parametric_grid_2, parametric_grid_3, parametric_grid_4, parametric_grid_5, parametric_grid_6]
-parametric_grids = [parametric_grid_5, parametric_grid_6]
+# # parametric_grids = [parametric_grid_1, parametric_grid_2, parametric_grid_3, parametric_grid_4, parametric_grid_5, parametric_grid_6]
+# parametric_grids = [parametric_grid_5, parametric_grid_6]
 
-surface_area = m3l.Variable(value=0, shape=(1, ))
-# for i in range(6):
-for i in range(2):
-    surface_grid = fishy.evaluate(parametric_grids[i])
+# surface_area = m3l.Variable(value=0, shape=(1, ))
+# # for i in range(6):
+# for i in range(2):
+#     surface_grid = cube.evaluate(parametric_grids[i])
 
-    u_vectors = surface_grid[1:,:] - surface_grid[:-1,:]
-    v_vectors = surface_grid[:,1:] - surface_grid[:,:-1]
+#     u_vectors = surface_grid[1:,:] - surface_grid[:-1,:]
+#     v_vectors = surface_grid[:,1:] - surface_grid[:,:-1]
 
-    u_vectors_low_v = u_vectors[:,:-1]
-    u_vectors_high_v = u_vectors[:,1:]
-    v_vectors_low_u = v_vectors[:-1,:]
-    v_vectors_high_u = v_vectors[1:,:]
+#     u_vectors_low_v = u_vectors[:,:-1]
+#     u_vectors_high_v = u_vectors[:,1:]
+#     v_vectors_low_u = v_vectors[:-1,:]
+#     v_vectors_high_u = v_vectors[1:,:]
 
-    area_vectors_left_lower = csdl.cross(u_vectors_low_v, v_vectors_high_u, axis=2)
-    area_vectors_right_upper = csdl.cross(v_vectors_low_u, u_vectors_high_v, axis=2)
-    area_magnitudes_left_lower = csdl.norm(area_vectors_left_lower, ord=2, axes=(2,))
-    area_magnitudes_right_upper = csdl.norm(area_vectors_right_upper, ord=2, axes=(2,))
-    area_magnitudes = (area_magnitudes_left_lower + area_magnitudes_right_upper)/2
-    wireframe_area = csdl.sum(area_magnitudes, axes=(0, 1))
-    surface_area = surface_area + wireframe_area
-# endregion Compute Surface Area
+#     area_vectors_left_lower = csdl.cross(u_vectors_low_v, v_vectors_high_u, axis=2)
+#     area_vectors_right_upper = csdl.cross(v_vectors_low_u, u_vectors_high_v, axis=2)
+#     area_magnitudes_left_lower = csdl.norm(area_vectors_left_lower, ord=2, axes=(2,))
+#     area_magnitudes_right_upper = csdl.norm(area_vectors_right_upper, ord=2, axes=(2,))
+#     area_magnitudes = (area_magnitudes_left_lower + area_magnitudes_right_upper)/2
+#     wireframe_area = csdl.sum(area_magnitudes, axes=(0, 1))
+#     surface_area = surface_area + wireframe_area
+# # endregion Compute Surface Area
 
 
 # region Objective Model
@@ -374,7 +324,7 @@ objective = -angle
 
 
 # parametric_coordinate_at_module_edge = np.array([[module_2_min_u, 0.5, 0.5]])
-# derivative_at_module_edge_old = deformed_fishy.evaluate(parametric_coordinate_at_module_edge, parametric_derivative_orders=(1,0,0))
+# derivative_at_module_edge_old = deformed_cube.evaluate(parametric_coordinate_at_module_edge, parametric_derivative_orders=(1,0,0))
 # derivative_at_module_edge_old = derivative_at_module_edge_old/csdl.norm(derivative_at_module_edge_old)    # normalize
 # old_angle = csdl.arccos(csdl.vdot(initial_angle, derivative_at_module_edge_old))
 # endregion Objective Model
@@ -387,44 +337,46 @@ height.set_as_design_variable(lower=0.03, upper=0.14, scaler=1.e2)
 objective.set_as_objective()
 
 
-sim = csdl.experimental.PySimulator(recorder=recorder)
-optimization_problem = CSDLAlphaProblem(problem_name='fishy_optimization', simulator=sim)
-# optimizer = SLSQP(optimization_problem, maxiter=100, ftol=1.e-7)
-optimizer = SLSQP(optimization_problem, maxiter=100, ftol=1.e-9)
+# sim = csdl.experimental.PySimulator(recorder=recorder)
+# optimization_problem = CSDLAlphaProblem(problem_name='cube_optimization', simulator=sim)
+# # optimizer = SLSQP(optimization_problem, maxiter=100, ftol=1.e-7)
+# optimizer = SLSQP(optimization_problem, maxiter=100, ftol=1.e-8)
 
 initial_objective_value = objective.value
 initial_length = length.value
 initial_width = width.value
 initial_height = height.value
-initial_surface_area = surface_area.value
+# initial_surface_area = surface_area.value
 initial_angle = angle.value
 
-# from csdl_alpha.src.operations.derivative.utils import verify_derivatives_inline
-# verify_derivatives_inline([csdl.norm(fishy.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
+from csdl_alpha.src.operations.derivative.utils import verify_derivatives_inline
+# verify_derivatives_inline([csdl.norm(cube.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([structural_mesh_displacements[list(np.arange(0, structural_displacements_flattened.size, 100))]], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([structural_displacements_flattened[list(np.arange(0, structural_displacements_flattened.size, 100))]], [length, width, height], 1.e-6, raise_on_error=False)
-# verify_derivatives_inline([structural_displacements_flattened[10000]], [length, width, height], 1.e-6, raise_on_error=False)
+# verify_derivatives_inline([structural_displacements_flattened], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([deformed_module.coefficients], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([derivative_at_module_edge1], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([derivative_at_module_edge], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([objective], [length, width, height], 1.e-6, raise_on_error=False)
 # optimizer.check_first_derivatives(optimization_problem.x0)
+# for i in range(structural_displacements.shape[0]):
+#     print(i)
+#     verify_derivatives_inline([structural_displacements[i]], [length, width, height], 1.e-6, raise_on_error=False)
+print('start')
+verify_derivatives_inline([structural_displacements], [length, width, height], 1.e-6, raise_on_error=False)
 
-# exit()
+exit()
 
-# d_objective_d_length = csdl.derivative(objective, length)
-# d_objective_d_width = csdl.derivative(objective, width)
-# d_objective_d_height = csdl.derivative(objective, height)
+d_objective_d_length = csdl.derivative(objective, length)
+d_objective_d_width = csdl.derivative(objective, width)
+d_objective_d_height = csdl.derivative(objective, height)
 
-# print('d_objective_d_length', d_objective_d_length.value)
-# print('d_objective_d_width', d_objective_d_width.value)
-# print('d_objective_d_height', d_objective_d_height.value)
-# exit()
+print('d_objective_d_length', d_objective_d_length.value)
+print('d_objective_d_width', d_objective_d_width.value)
+print('d_objective_d_height', d_objective_d_height.value)
+exit()
 
-# recorder.execute()
-
-
-# video = vedo.Video('fishy_width_sweep_fixed_midpoint.mp4', duration=5, backend='cv')
+# video = vedo.Video('cube_width_sweep_fixed_midpoint.mp4', duration=5, backend='cv')
 # width_values = np.linspace(0.015, 0.05, 5)
 # direction_values = np.zeros((len(width_values), 3))
 # old_direction_values = np.zeros((len(width_values), 3))
@@ -439,12 +391,12 @@ initial_angle = angle.value
 #     direction_values[i] = derivative_at_module_edge.value
 #     old_direction_values[i] = derivative_at_module_edge_old.value
 
-#     fishy_plot = fishy.plot(show=False, opacity=0.3)
+#     cube_plot = cube.plot(show=False, opacity=0.3)
 #     vedo_mesh = vedo.Mesh([displaced_mesh.value, structural_elements]).wireframe()
 #     arrow = vedo.Arrow(tuple(module_edge.value.reshape((-1,))), 
 #                                    tuple((module_edge.value - derivative_at_module_edge.value/10).reshape((-1,))), s=0.0005)
 #     plotter = vedo.Plotter(offscreen=True)
-#     plotter.show([fishy_plot, vedo_mesh, arrow], axes=1, viewup='y')
+#     plotter.show([cube_plot, vedo_mesh, arrow], axes=1, viewup='y')
 #     video.add_frame()
 
 # video.close()
@@ -487,18 +439,18 @@ print("Percent Change in Width: ", (width.value - initial_width)/initial_width*1
 print("Percent Change in Height: ", (height.value - initial_height)/initial_height*100)
 
 # from csdl_alpha.src.operations.derivative.utils import verify_derivatives_inline
-# verify_derivatives_inline([csdl.norm(fishy.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
+# verify_derivatives_inline([csdl.norm(cube.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([csdl.norm(structural_displacements_flattened)], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([csdl.norm(structural_displacements_b_spline.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
 # verify_derivatives_inline([csdl.norm(deformations_in_module)], [length, width, height], 1.e-6, raise_on_error=False)
-# verify_derivatives_inline([csdl.norm(deformed_fishy.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
+# verify_derivatives_inline([csdl.norm(deformed_cube.coefficients)], [length, width, height], 1.e-6, raise_on_error=False)
 # optimizer.check_first_derivatives(optimization_problem.x0)
 
 # Plot structural solver result
-fishy_plot = fishy.plot(show=False, opacity=0.3)
+cube_plot = cube.plot(show=False, opacity=0.3)
 vedo_mesh_initial = vedo.Mesh([initial_displaced_mesh, structural_elements]).wireframe().color('yellow').opacity(0.4)
 vedo_mesh = vedo.Mesh([displaced_mesh.value, structural_elements]).wireframe().color('green').opacity(0.8)
 plotter = vedo.Plotter()
-plotter.show([fishy_plot, vedo_mesh_initial, vedo_mesh], axes=1, viewup='y')
+plotter.show([cube_plot, vedo_mesh_initial, vedo_mesh], axes=1, viewup='y')
 
 # endregion Optimization
