@@ -149,4 +149,5 @@ fishy_optimization_outputs/
 stored_files/
 **.csv
 **.xlsx
-
+**.msh
+**meshes/

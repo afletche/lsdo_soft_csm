@@ -1,4 +1,3 @@
-import m3l
 import csdl_alpha as csdl
 from python_csdl_backend import Simulator
 import numpy as np

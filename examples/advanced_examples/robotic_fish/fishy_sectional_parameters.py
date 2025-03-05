@@ -2,7 +2,7 @@ import lsdo_geo
 import lsdo_geo.splines.b_splines.b_spline_functions as bsp
 
 import numpy as np
-import m3l
+
 import vedo
 
 from panel_method.utils.generate_meshes import generate_fish_v_m1,get_connectivity_matrix_from_pyvista

@@ -3,7 +3,7 @@ from lsdo_geo.splines.b_splines.b_spline import BSpline
 import pickle
 import meshio
 import numpy as np
-import m3l
+
 import vedo
 import python_csdl_backend
 # from modopt.scipy_library import SLSQP
