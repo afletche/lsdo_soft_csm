@@ -201,7 +201,7 @@ fea_model.create_input("{}".format(input_name),
 # fea_model.add_design_variable(input_name)
 # fea_model.add_objective(output_name, scaler=1e5)
 
-from python_csdl_backend import Simulator
+
 sim = Simulator(fea_model)
 # sim = om_simulator(fea_model)
 ########### Test the forward solve ##############

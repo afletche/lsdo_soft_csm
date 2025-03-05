@@ -1,6 +1,6 @@
 
 import csdl_alpha as csdl
-from python_csdl_backend import Simulator
+
 import numpy as np
 
 from femo.fea.fea_dolfinx import XDMFFile, MPI, FEA, VectorFunctionSpace, Function, FunctionSpace, \

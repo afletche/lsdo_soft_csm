@@ -1,6 +1,6 @@
 
 import csdl
-from python_csdl_backend import Simulator
+
 
 from femo.fea.fea_dolfinx import *
 from femo.csdl_opt.fea_model import FEAModel

@@ -6,7 +6,7 @@ import numpy as np
 import scipy.sparse as sps
 
 import vedo
-import python_csdl_backend
+
 from modopt.scipy_library import SLSQP
 from modopt.csdl_library import CSDLProblem
 
