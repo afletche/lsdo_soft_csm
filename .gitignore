@@ -138,3 +138,15 @@ top_level_req.in
 top_level_req.txt
 _autosummary
 _conf_master.py
+
+records/
+records_from_not_optimizations/
+fishy_optimization_outputs/
+*.mp4
+*.avi
+*.hdf5
+*.npy
+stored_files/
+**.csv
+**.xlsx
+

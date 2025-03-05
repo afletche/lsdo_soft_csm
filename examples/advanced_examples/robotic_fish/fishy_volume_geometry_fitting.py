@@ -6,7 +6,8 @@ import vedo
 import numpy as np
 
 # Preprocessing to get geometry volume from mesh surfaces
-msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/fish_v1_finer_finer_finer_finer.msh")
+# msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/fish_v1_finer_finer_finer_finer.msh")
+msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/mini_v1_full_fish_with_fin.msh")
 mesh_nodes = msh.points/1000
 # print(mesh_nodes.shape)
 
@@ -35,7 +36,7 @@ recorder = csdl.Recorder(inline=True)
 recorder.start()
 
 # Create an enclosure volume around the mesh
-enclosure_volume = lfs.create_enclosure_block(points=mesh_nodes, num_coefficients=(21,15,15), degree=(2,2,2))
+enclosure_volume = lfs.create_enclosure_block(points=mesh_nodes, num_coefficients=(51,15,15), degree=(2,2,2))
 plotting_volume = enclosure_volume.plot(opacity=0.3, show=False)
 plotting_points = vedo.Points(mesh_nodes, r=4, c='gold')
 # plotter = vedo.Plotter()
@@ -44,7 +45,8 @@ plotting_points = vedo.Points(mesh_nodes, r=4, c='gold')
 # "Project" the enclosure volume outer surfaces onto the mesh points (find the closest mesh point to each volume outer surface point)
 total_fitting_points = []
 total_fitting_parametric_coordinates = []
-num_fitting_points = (121,51,51)
+num_fitting_points = (151,51,51)
+# num_fitting_points = (251,41,41)
 # -- Back surface
 back_surface_parametric_coordinates_u = np.zeros((num_fitting_points[1]*num_fitting_points[2],))
 back_surface_parametric_coordinates_v = np.einsum('i,j->ij', np.linspace(0., 1., num_fitting_points[1]), np.ones(num_fitting_points[2])).flatten()
@@ -247,9 +249,12 @@ total_fitting_parametric_coordinates = np.column_stack(
 # Use the mesh coordinates (now physical and parametric) to fit a B-spline volume
 # plot_volume(total_fitting_points.reshape((num_fitting_points[0], num_fitting_points[1], num_fitting_points[2], 3)))
 
+# fishy_function_space = lfs.BSplineSpace(num_parametric_dimensions=3, degree=(2,2,2), coefficients_shape=(151,17,17))
 fishy_function_space = lfs.BSplineSpace(num_parametric_dimensions=3, degree=(2,2,2), coefficients_shape=(51,15,15))
 fishy = fishy_function_space.fit_function(values=total_fitting_points, parametric_coordinates=total_fitting_parametric_coordinates,
+                                        #   regularization_parameter=1.e-1)  # 1e-1
                                           regularization_parameter=1.e-3)  # 1e-1
+                                        #   regularization_parameter=1.e-2)  # 1e-1
 # fishy = fit_b_spline(fitting_points=total_fitting_points, parametric_coordinates=total_fitting_parametric_coordinates, order=(3,3,3),
 #                       num_coefficients=(51,15,15), regularization_parameter=1.e-3)  # 1e-1
 fishy.plot()
@@ -260,7 +265,8 @@ fishy.plot()
 # Save geometry in pickle file so this doesn't have to be redone each run
 import os
 import pickle
-file_name = "examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_fine.pickle"
+# file_name = "examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_geometry_very_fine_quadratic.pickle"
+file_name = "examples/advanced_examples/robotic_fish/pickle_files/fishy_mini_v1_volume_geometry_2.pickle"
 # fn = os.path.basename(file_name)
 # fn_wo_ext = fn[:fn.rindex('.')]
 
@@ -278,4 +284,5 @@ file_name = "examples/advanced_examples/robotic_fish/pickle_files/fishy_volume_g
 
 # else:
 with open(file_name, 'wb+') as handle:
+    fishy.coefficients = fishy.coefficients.value
     pickle.dump(fishy, handle, protocol=pickle.HIGHEST_PROTOCOL)

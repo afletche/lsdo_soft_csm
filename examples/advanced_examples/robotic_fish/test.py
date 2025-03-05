@@ -5,7 +5,11 @@ import meshio
 # msh = meshio.read("examples/advanced_examples/meshes/segment0.msh")
 # msh = meshio.read("examples/advanced_examples/meshes/test_mesh.msh")
 # msh = meshio.read("examples/advanced_examples/meshes/Module_no_pump.msh")
-msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_fine.msh")
+msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_1point5mm.msh")
+# msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_refined_2.msh")
+# msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_refined_3.msh")
+# msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_refinement_study_10mm.msh")
+# msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_very_refined_centerline_2point5mm.msh")
 # msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/fish_v1.msh")
 
 # print(msh.points)
@@ -45,18 +49,30 @@ msh = meshio.read("examples/advanced_examples/robotic_fish/meshes/module_v1_fine
 
 cells = msh.get_cells_type("tetra")
 # meshio.write("examples/advanced_examples/meshes/segment0.xdmf", meshio.Mesh(points=msh.points, cells={"tetra": msh.cells["tetra"]}))
-meshio.write("examples/advanced_examples/meshes/module_v1_fine.xdmf", meshio.Mesh(points=msh.points/1000, cells={"tetra": cells}))
+meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_1point5mm.xdmf", meshio.Mesh(points=msh.points/1000, cells={"tetra": cells}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_refined_2.xdmf", meshio.Mesh(points=msh.points/1000, cells={"tetra": cells}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_refined_3.xdmf", meshio.Mesh(points=msh.points/1000, cells={"tetra": cells}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_refinement_study_10mm.xdmf", meshio.Mesh(points=msh.points/1000, cells={"tetra": cells}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_very_refined_centerline_2point5mm.xdmf", meshio.Mesh(points=msh.points/1000, cells={"tetra": cells}))
 # meshio.write("examples/advanced_examples/meshes/segment1_with_left_chamber.xdmf", meshio.Mesh(points=msh.points, cells={"tetra": cells}))
 cells = msh.get_cells_type("triangle")
 cell_data = msh.get_cell_data("gmsh:physical", "triangle")
 # meshio.write("examples/advanced_examples/meshes/left_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points, cells={"triangle": msh.cells_dict["triangle"]},
 #                                     cell_data={"triangle": {"left_chamber_inner_surfaces": msh.cell_data_dict["triangle"]["gmsh:physical"]}}))
-meshio.write("examples/advanced_examples/meshes/module_v1_fine_left_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells},
+meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_1point5mm_left_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells},
                                     cell_data={"left_chamber_inner_surfaces": [cell_data]}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_refinement_study_10mm_left_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells},
+#                                     cell_data={"left_chamber_inner_surfaces": [cell_data]}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_very_refined_centerline_2point5mm_left_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells},
+#                                     cell_data={"left_chamber_inner_surfaces": [cell_data]}))
 # meshio.write("examples/advanced_examples/meshes/right_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points, cells={"triangle": cells}, 
 #                                     cell_data={"triangle": {"right_chamber_inner_surfaces": msh.cell_data["triangle"]["gmsh:physical"]}}))
-meshio.write("examples/advanced_examples/meshes/module_v1_fine_right_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells}, 
+meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_1point5mm_right_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells}, 
                                     cell_data={"right_chamber_inner_surfaces": [cell_data]}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_refinement_study_10mm_right_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells}, 
+#                                     cell_data={"right_chamber_inner_surfaces": [cell_data]}))
+# meshio.write("examples/advanced_examples/robotic_fish/meshes/module_v1_very_refined_centerline_2point5mm_right_chamber_inner_surfaces.xdmf", meshio.Mesh(points=msh.points/1000, cells={"triangle": cells}, 
+#                                     cell_data={"right_chamber_inner_surfaces": [cell_data]}))
 # meshio.write("examples/advanced_examples/meshes/segment1_with_left_chamber_left_chamber.xdmf", meshio.Mesh(points=msh.points, cells={"triangle": cells},
 #                                     cell_data={"triangle": {"left_chamber_inner_surfaces": cell_data}}))
 
