@@ -129,11 +129,11 @@ input_size = training_data_geometry_coefficients.shape[0] + 1 # +1 for pump_pres
 output_size = training_data_displacements.shape[0] + 1 # +1 for applied_work
 # output_size = structural_displacements.size # start with just displacements for now
 # model = csdml.FCNN(input_dim=output_size, hidden_dims=[200, 200, 200], output_dim=output_size, activation=['relu', 'relu', 'relu', None])
-model = csdml.FCNN(input_dim=input_size, hidden_dims=[160, 160, 160], output_dim=output_size, activation=['relu', 'relu', 'relu', None])
+model = csdml.FCNN(input_dim=input_size, hidden_dims=[320, 320, 320], output_dim=output_size, activation=['relu', 'relu', 'relu', None])
 
 optimizer = optax.adam(1e-3)
 loss_history, test_loss_history, best_param_vals = model.train_jax_opt(optimizer, loss_data, test_data=test_data, 
-                                                                       device=device, num_epochs=200, num_batches=1, plot=False)
+                                                                       device=device, num_epochs=400, num_batches=1, plot=False)
 # save loss history
 loss_history = np.array(loss_history)
 test_loss_history = np.array(test_loss_history)
