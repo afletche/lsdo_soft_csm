@@ -546,10 +546,10 @@ def import_training_data(filename):
 # region load training/test data
 training_data_width_shape_variables_5_dims, training_data_pump_pressure_5_dims,_, \
     training_data_displacements_5_dims, training_data_applied_work_5_dims = \
-    import_training_data('saved_data_5_dims.hdf5')
+    import_training_data('examples/advanced_examples/robotic_fish/training_data/saved_data_5_dims.hdf5')
 training_data_width_shape_variables_6_dims, training_data_pump_pressure_6_dims, training_data_height_6_dims, \
     training_data_displacements_6_dims, training_data_applied_work_6_dims = \
-    import_training_data('saved_data_6_dims.hdf5')
+    import_training_data('examples/advanced_examples/robotic_fish/training_data/saved_data_6_dims.hdf5')
 training_data_width_shape_variables = np.hstack([training_data_width_shape_variables_5_dims, training_data_width_shape_variables_6_dims])
 training_data_pump_pressure = np.hstack([training_data_pump_pressure_5_dims, training_data_pump_pressure_6_dims])
 training_data_displacements = np.hstack([training_data_displacements_5_dims, training_data_displacements_6_dims])
@@ -582,7 +582,7 @@ training_data_applied_work = np.hstack([training_data_applied_work_5_dims, train
 # exit()
 # # endregion oops
 
-training_data_mesh_displacements = np.load('training_data_mesh_displacements.npy')
+training_data_mesh_displacements = np.load('examples/advanced_examples/robotic_fish/training_data/training_data_mesh_displacements.npy')
 num_test_data = 50
 test_data_mesh_displacements = training_data_mesh_displacements[:, -num_test_data:]
 test_data_pump_pressure = training_data_pump_pressure[:, -num_test_data:]
@@ -594,10 +594,6 @@ training_data_pump_pressure = training_data_pump_pressure[:, :-num_test_data]
 training_data_displacements = training_data_displacements[:, :-num_test_data]
 training_data_applied_work = training_data_applied_work[:, :-num_test_data]
 
-print('Test data shape: ', test_data_mesh_displacements.shape, test_data_displacements.shape)
-print('Training data shape: ', training_data_mesh_displacements.shape, training_data_displacements.shape)
-
-
 training_data_inputs = np.vstack([training_data_mesh_displacements, training_data_pump_pressure]).T
 test_data_inputs = np.vstack([test_data_mesh_displacements, test_data_pump_pressure]).T
 training_data_outputs = np.vstack([training_data_displacements, training_data_applied_work]).T
@@ -605,21 +601,6 @@ test_data_outputs = np.vstack([test_data_displacements, test_data_applied_work])
 
 loss_data = (training_data_inputs, training_data_outputs)
 test_data = (test_data_inputs, test_data_outputs)
-
-print('Training data shape: ', training_data_inputs.shape, training_data_outputs.shape)
-print('Test data shape: ', test_data_inputs.shape, test_data_outputs.shape)
-
-
-
-# test_data = np.load('test.npz')
-# X_test = test_data['X_test0']
-# T_test = test_data['X_test1']
-# Y_test = test_data['y_test']
-
-# train_data = np.load('train.npz')
-# X = train_data['X_train0']
-# T = train_data['X_train1']
-# y = train_data['y_train']
 # endregion load training/test data
 
 # device = jax.devices('gpu')[0]
