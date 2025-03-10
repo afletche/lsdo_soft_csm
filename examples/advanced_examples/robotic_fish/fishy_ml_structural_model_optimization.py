@@ -1,8 +1,11 @@
 import csdl_alpha as csdl
 import lsdo_geo
 import lsdo_function_spaces as lfs
-import lsdo_soft_csm
+
 import csdml
+import optax
+import jax
+# jax.config.update("jax_disable_jit", True)
 from VortexAD.core.panel_method.unsteady_panel_solver import unsteady_panel_solver
 from lsdo_serpent.core.fish_post_processor import fish_post_processor
 
@@ -12,6 +15,8 @@ import numpy as np
 from modopt import PySLSQP
 from modopt import CSDLAlphaProblem
 import matplotlib.pyplot as plt
+
+import lsdo_soft_csm
 import vedo
 
 
@@ -443,10 +448,10 @@ actuation_period = 1/actuation_frequency
 
 # pump_pressure = csdl.Variable(value=4.5e4, name='base_max_pressure')
 # pump_pressure = csdl.Variable(value=3.e4, name='base_max_pressure')
-pump_pressure = csdl.Variable(value=2.5e4, name='base_max_pressure')
+# pump_pressure = csdl.Variable(value=2.5e4, name='base_max_pressure')
 # pump_pressure = csdl.Variable(value=2.472724806605190562e+4, name='base_max_pressure')
 # pump_pressure = csdl.Variable(value=1.e4, name='base_max_pressure')
-# pump_pressure = csdl.Variable(value=0.e4, name='base_max_pressure')
+pump_pressure = csdl.Variable(value=0.e4, name='base_max_pressure')
 one_hertz_max_pressure = 3.5e4    # Pa
 half_hertz_max_pressure = 5e4    # Pa
 delta_frequency = 0.5
@@ -476,17 +481,164 @@ if new_mesh_cooordinates.shape != structural_mesh.shape:
     structural_mesh = new_mesh_cooordinates
     structural_mesh_parametric = fishy.project(points=new_mesh_cooordinates, grid_search_density_parameter=1., plot=False, projection_tolerance=1.e-3)
 
-generator = csdml.Generator(recorder=recorder)
-generator.add_input(pump_pressure, lower=0., upper=3.75e4)
-generator.add_input(width_shape_variables, lower=(-(computed_fishy_width.value*0.4)/2)[0], upper=((computed_fishy_width.value)/2)[0])
-generator.add_input(height, lower=height.value*0.6, upper=height.value*2.)
-generator.add_output(structural_displacements)
-generator.add_output(applied_work)
 
 # region Generate Training Data
+# generator = csdml.Generator(recorder=recorder)
+# generator.add_input(pump_pressure, lower=0., upper=3.75e4)
+# generator.add_input(width_shape_variables, lower=(-(computed_fishy_width.value*0.4)/2)[0], upper=((computed_fishy_width.value)/2)[0])
+# generator.add_input(height, lower=height.value*0.6, upper=height.value*2.)
+# generator.add_output(structural_displacements)
+# generator.add_output(applied_work)
+
 # generator.generate(samples_per_dim=3, filename='new_data_6_dims.hdf5')
 # generator.generate(n_samples=600, filename='new_data_6_dims.hdf5')
 # endregion Generate Training Data
+
+def import_training_data(filename):
+    training_data_inputs_1 = []
+    training_data_inputs_2 = []
+    training_data_inputs_3 = []
+    training_data_outputs_1 = []
+    training_data_outputs_2 = []
+    import h5py
+    with h5py.File(filename, "r") as f:
+        # Print all root level object names (aka keys) 
+        # these can be group or dataset names 
+        # print("Keys: %s" % f.keys())
+        # get first object name/key; may or may NOT be a group
+        # a_group_key = list(f.keys())[0]
+
+        # get the object type for a_group_key: usually group or dataset
+        # print(type(f[a_group_key])) 
+
+        # If a_group_key is a group name, 
+        # this gets the object names in the group and returns as a list
+        # data = list(f[a_group_key])
+
+        # If a_group_key is a dataset name, 
+        # this gets the dataset values and returns as a list
+        # data = list(f[a_group_key])
+        # preferred methods to get dataset values:
+        # ds_obj = f[a_group_key]      # returns as a h5py dataset object
+        for sample_name in f.keys():
+            sample_group = f[sample_name]
+            sample_width_shape_variables = sample_group['width_shape_deltas'][()].reshape((-1,1))
+            training_data_inputs_1.append(sample_width_shape_variables)
+            sample_pump_pressure = sample_group['base_max_pressure'][()].reshape((-1,1))
+            training_data_inputs_2.append(sample_pump_pressure)
+            sample_displacement = sample_group['variable_0'][()].reshape((-1,1))
+            training_data_outputs_1.append(sample_displacement)
+            sample_applied_work = sample_group['applied_work'][()].reshape((-1,1))
+            training_data_outputs_2.append(sample_applied_work)
+
+            if filename == 'saved_data_6_dims.hdf5':
+                sample_height = sample_group['height'][()].reshape((-1,1))
+                training_data_inputs_3.append(sample_height)
+        training_data_inputs_1 = np.hstack(training_data_inputs_1)
+        training_data_inputs_2 = np.hstack(training_data_inputs_2)
+        training_data_outputs_1 = np.hstack(training_data_outputs_1)
+        training_data_outputs_2 = np.hstack(training_data_outputs_2)
+        return training_data_inputs_1, training_data_inputs_2, training_data_inputs_3, \
+            training_data_outputs_1, training_data_outputs_2
+
+# region train ML model
+
+# region load training/test data
+training_data_width_shape_variables_5_dims, training_data_pump_pressure_5_dims,_, \
+    training_data_displacements_5_dims, training_data_applied_work_5_dims = \
+    import_training_data('saved_data_5_dims.hdf5')
+training_data_width_shape_variables_6_dims, training_data_pump_pressure_6_dims, training_data_height_6_dims, \
+    training_data_displacements_6_dims, training_data_applied_work_6_dims = \
+    import_training_data('saved_data_6_dims.hdf5')
+training_data_width_shape_variables = np.hstack([training_data_width_shape_variables_5_dims, training_data_width_shape_variables_6_dims])
+training_data_pump_pressure = np.hstack([training_data_pump_pressure_5_dims, training_data_pump_pressure_6_dims])
+training_data_displacements = np.hstack([training_data_displacements_5_dims, training_data_displacements_6_dims])
+training_data_applied_work = np.hstack([training_data_applied_work_5_dims, training_data_applied_work_6_dims])
+
+# # region oops
+# # I realize, I forgot to add the direct model input as an output to the generator, so I need to map
+# # the geometry inputs to the structural solver inputs
+# additional_inputs = [width_shape_variables, height]
+# additional_outputs = [structural_mesh_displacements]
+
+# sim = csdl.experimental.JaxSimulator(
+#     recorder = recorder,
+#     additional_inputs=additional_inputs,
+#     additional_outputs=additional_outputs,
+#     gpu=False
+# )
+
+# training_data_mesh_displacements = []
+# for i in range(training_data_width_shape_variables.shape[1]):
+#     print('Simulating sample: ', i, ' of ', training_data_width_shape_variables.shape[1])
+#     sim[width_shape_variables] = training_data_width_shape_variables[:,i]
+#     if i > training_data_width_shape_variables_5_dims.shape[1]:
+#         sim[height] = training_data_pump_pressure[:,i-training_data_width_shape_variables_5_dims.shape[0]]
+#     sim.run()
+#     training_data_mesh_displacements.append(sim[structural_mesh_displacements].reshape((-1,1)))
+# training_data_mesh_displacements = np.hstack(training_data_mesh_displacements)
+# # Save correct mesh displacements
+# np.save('training_data_mesh_displacements.npy', training_data_mesh_displacements)
+# exit()
+# # endregion oops
+
+training_data_mesh_displacements = np.load('training_data_mesh_displacements.npy')
+num_test_data = 50
+test_data_mesh_displacements = training_data_mesh_displacements[:, -num_test_data:]
+test_data_pump_pressure = training_data_pump_pressure[:, -num_test_data:]
+test_data_displacements = training_data_displacements[:, -num_test_data:]
+test_data_applied_work = training_data_applied_work[:, -num_test_data:]
+
+training_data_mesh_displacements = training_data_mesh_displacements[:, :-num_test_data]
+training_data_pump_pressure = training_data_pump_pressure[:, :-num_test_data]
+training_data_displacements = training_data_displacements[:, :-num_test_data]
+training_data_applied_work = training_data_applied_work[:, :-num_test_data]
+
+print('Test data shape: ', test_data_mesh_displacements.shape, test_data_displacements.shape)
+print('Training data shape: ', training_data_mesh_displacements.shape, training_data_displacements.shape)
+
+
+training_data_inputs = np.vstack([training_data_mesh_displacements, training_data_pump_pressure]).T
+test_data_inputs = np.vstack([test_data_mesh_displacements, test_data_pump_pressure]).T
+training_data_outputs = np.vstack([training_data_displacements, training_data_applied_work]).T
+test_data_outputs = np.vstack([test_data_displacements, test_data_applied_work]).T
+
+loss_data = (training_data_inputs, training_data_outputs)
+test_data = (test_data_inputs, test_data_outputs)
+
+print('Training data shape: ', training_data_inputs.shape, training_data_outputs.shape)
+print('Test data shape: ', test_data_inputs.shape, test_data_outputs.shape)
+
+
+
+# test_data = np.load('test.npz')
+# X_test = test_data['X_test0']
+# T_test = test_data['X_test1']
+# Y_test = test_data['y_test']
+
+# train_data = np.load('train.npz')
+# X = train_data['X_train0']
+# T = train_data['X_train1']
+# y = train_data['y_train']
+# endregion load training/test data
+
+# device = jax.devices('gpu')[0]
+device = jax.devices('cpu')[0]
+input_size = structural_mesh_displacements.size + 1 # +1 for pump_pressure
+output_size = structural_displacements.size + 1 # +1 for applied_work
+# output_size = structural_displacements.size # start with just displacements for now
+model = csdml.FCNN(input_dim=output_size, hidden_dims=[200, 200, 200], output_dim=output_size, activation=['relu', 'relu', 'relu', None])
+
+optimizer = optax.adam(1e-5)
+loss_history, test_loss_history, best_param_vals = model.train_jax_opt(optimizer, loss_data, test_data=test_data, 
+                                                                       device=device, num_epochs=10000, num_batches=1)
+# save loss history
+loss_history = np.array(loss_history)
+test_loss_history = np.array(test_loss_history)
+
+np.savez('loss_history.npz', loss_history=loss_history, test_loss_history=test_loss_history)
+pickle.dump(best_param_vals, open('best_param_vals.pkl', 'wb'))
+# endregion train ML model
 
 
 # # region Construct POD Basis
@@ -800,7 +952,7 @@ for i in range(deformed_fishy_weights.size):
 # new_opposite_deformed_fishy_weights = np.array(new_opposite_deformed_fishy_weights)
 
 ############################
-recorder.inline = True
+recorder.inline = False
 ############################
 
 new_deformed_fishy_weights = deformed_fishy_weights[deformed_side_interpolation_indices] - 1
