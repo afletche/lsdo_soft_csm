@@ -118,6 +118,20 @@ test_data_inputs = np.vstack([test_data_geometry_coefficients, test_data_pump_pr
 training_data_outputs = np.vstack([training_data_displacements, training_data_applied_work]).T
 test_data_outputs = np.vstack([test_data_displacements, test_data_applied_work]).T
 
+# Scale inputs and outputs
+training_data_input_mins = training_data_inputs.min(axis=0)
+training_data_input_maxs = training_data_inputs.max(axis=0)
+training_data_output_mins = training_data_outputs.min(axis=0)
+training_data_output_maxs = training_data_outputs.max(axis=0)
+training_inputs_max_minus_min = training_data_input_maxs - training_data_input_mins
+training_outputs_max_minus_min = training_data_output_maxs - training_data_output_mins
+training_inputs_max_minus_min = np.where(training_inputs_max_minus_min == 0, 1, training_inputs_max_minus_min)
+training_outputs_max_minus_min = np.where(training_outputs_max_minus_min == 0, 1, training_outputs_max_minus_min)
+training_data_inputs = (training_data_inputs - training_data_input_mins) / training_inputs_max_minus_min
+test_data_inputs = (test_data_inputs - training_data_input_mins) / training_inputs_max_minus_min
+training_data_outputs = (training_data_outputs - training_data_output_mins) / training_outputs_max_minus_min
+test_data_outputs = (test_data_outputs - training_data_output_mins) / training_outputs_max_minus_min
+
 loss_data = (training_data_inputs, training_data_outputs)
 test_data = (test_data_inputs, test_data_outputs)
 # endregion load training/test data
@@ -128,12 +142,14 @@ input_size = training_data_geometry_coefficients.shape[0] + 1 # +1 for pump_pres
 # input_size = training_data_mesh_displacements.shape[0] + 1 # +1 for pump_pressure
 output_size = training_data_displacements.shape[0] + 1 # +1 for applied_work
 # output_size = structural_displacements.size # start with just displacements for now
-# model = csdml.FCNN(input_dim=output_size, hidden_dims=[200, 200, 200], output_dim=output_size, activation=['relu', 'relu', 'relu', None])
-model = csdml.FCNN(input_dim=input_size, hidden_dims=[160, 160, 160, 160], output_dim=output_size, activation=[None, 'relu', 'relu', 'relu', None])
+# model = csdml.FCNN(input_dim=input_size, hidden_dims=[200, 200, 200], output_dim=output_size, activation=['relu', 'relu', 'relu', None])
+# model = csdml.FCNN(input_dim=input_size, hidden_dims=[160, 160, 160, 160], output_dim=output_size, activation=[None, 'relu', 'relu', 'relu', None])
+# model = csdml.FCNN(input_dim=input_size, hidden_dims=[160,160,160,160,160], output_dim=output_size, activation=['relu','relu','relu','relu','tanh', None])
+model = csdml.FCNN(input_dim=input_size, hidden_dims=[80, 80, 80], output_dim=output_size, activation=['tanh', 'tanh', 'tanh', None])
 
-optimizer = optax.adam(1e-3)
+optimizer = optax.adam(1.e-3)
 loss_history, test_loss_history, best_param_vals = model.train_jax_opt(optimizer, loss_data, test_data=test_data, 
-                                                                       device=device, num_epochs=400, num_batches=1, plot=False)
+                                                                       device=device, num_epochs=1000, num_batches=1, plot=False)
 # save loss history
 loss_history = np.array(loss_history)
 test_loss_history = np.array(test_loss_history)
@@ -147,9 +163,9 @@ fig, ax = plt.subplots(1, 1)
 __=ax.plot(np.log10(loss_history))
 if test_data is not None:
     __=ax.plot(np.log10(test_loss_history))
-    ax.legend(['train', 'test'])
-xlabel = ax.set_xlabel(r'${\rm step\ number}$')
-ylabel = ax.set_ylabel(r'$\log_{10}{\rm loss}$')
-title = ax.set_title(r'${\rm training\ history}$')
+    ax.legend(['Train', 'Test'])
+xlabel = ax.set_xlabel(r'${\rm Step\ Number}$')
+ylabel = ax.set_ylabel(r'$\log_{10}{\rm Loss}$')
+title = ax.set_title(r'${\rm Training\ History}$')
 plt.savefig('loss_plot.png')
 plt.show()
