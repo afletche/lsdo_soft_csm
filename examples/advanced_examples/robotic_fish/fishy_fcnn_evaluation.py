@@ -1,13 +1,16 @@
 import csdl_alpha as csdl
-import jax
+import lsdo_soft_csm
 import numpy as np
 import csdml
-import optax
 import pickle
 import lsdo_function_spaces as lfs
 import lsdo_geo
 import meshio
 import time
+import vedo
+import jax
+# enable 64
+# jax.config.update("jax_enable_x64", True)
 
 recorder = csdl.Recorder(inline=True)
 recorder.start()
@@ -299,11 +302,11 @@ actuation_period = 1/actuation_frequency
 # frequency_of_max_pressure = 0.5/(volume_ratio)
 
 # pump_pressure = csdl.Variable(value=4.5e4, name='base_max_pressure')
-# pump_pressure = csdl.Variable(value=3.e4, name='base_max_pressure')
-# pump_pressure = csdl.Variable(value=2.5e4, name='base_max_pressure')
+# pump_pressure = csdl.Variable(value=3.75e4, name='base_max_pressure')
+pump_pressure = csdl.Variable(value=2.5e4, name='base_max_pressure')
 # pump_pressure = csdl.Variable(value=2.472724806605190562e+4, name='base_max_pressure')
 # pump_pressure = csdl.Variable(value=1.e4, name='base_max_pressure')
-pump_pressure = csdl.Variable(value=0.e4, name='base_max_pressure')
+# pump_pressure = csdl.Variable(value=0.e4, name='base_max_pressure')
 one_hertz_max_pressure = 3.5e4    # Pa
 half_hertz_max_pressure = 5e4    # Pa
 delta_frequency = 0.5
@@ -327,22 +330,168 @@ nu_fr4 = csdl.Variable(value=0.12, name='nu_fr4')
 # nu_dragon.set_value(3.0e-1)
 # E_fr4.set_value(0.223121251595327195e+9)
 
-# structural_displacements, applied_work, new_mesh_cooordinates = lsdo_soft_csm.robotic_fish_static_structural_model(structural_mesh_displacements, pump_pressure,
+# structural_displacements, structural_applied_work, new_mesh_cooordinates = lsdo_soft_csm.robotic_fish_static_structural_model(structural_mesh_displacements, pump_pressure,
 #                                                                                                             E_dragon, nu_dragon, E_fr4, nu_fr4)
 # if new_mesh_cooordinates.shape != structural_mesh.shape:
 #     structural_mesh = new_mesh_cooordinates
 #     structural_mesh_parametric = fishy.project(points=new_mesh_cooordinates, grid_search_density_parameter=1., plot=False, projection_tolerance=1.e-3)
 
+
+def import_training_data(filename):
+    training_data_inputs_1 = []
+    training_data_inputs_2 = []
+    training_data_inputs_3 = []
+    training_data_outputs_1 = []
+    training_data_outputs_2 = []
+    import h5py
+    with h5py.File(filename, "r") as f:
+        # Print all root level object names (aka keys) 
+        # these can be group or dataset names 
+        # print("Keys: %s" % f.keys())
+        # get first object name/key; may or may NOT be a group
+        # a_group_key = list(f.keys())[0]
+
+        # get the object type for a_group_key: usually group or dataset
+        # print(type(f[a_group_key])) 
+
+        # If a_group_key is a group name, 
+        # this gets the object names in the group and returns as a list
+        # data = list(f[a_group_key])
+
+        # If a_group_key is a dataset name, 
+        # this gets the dataset values and returns as a list
+        # data = list(f[a_group_key])
+        # preferred methods to get dataset values:
+        # ds_obj = f[a_group_key]      # returns as a h5py dataset object
+        for sample_name in f.keys():
+            sample_group = f[sample_name]
+            sample_width_shape_variables = sample_group['width_shape_deltas'][()].reshape((-1,1))
+            training_data_inputs_1.append(sample_width_shape_variables)
+            sample_pump_pressure = sample_group['base_max_pressure'][()].reshape((-1,1))
+            training_data_inputs_2.append(sample_pump_pressure)
+            sample_displacement = sample_group['variable_0'][()].reshape((-1,1))
+            training_data_outputs_1.append(sample_displacement)
+            sample_applied_work = sample_group['applied_work'][()].reshape((-1,1))
+            training_data_outputs_2.append(sample_applied_work)
+
+            if filename == 'saved_data_6_dims.hdf5':
+                sample_height = sample_group['height'][()].reshape((-1,1))
+                training_data_inputs_3.append(sample_height)
+        training_data_inputs_1 = np.hstack(training_data_inputs_1)
+        training_data_inputs_2 = np.hstack(training_data_inputs_2)
+        training_data_outputs_1 = np.hstack(training_data_outputs_1)
+        training_data_outputs_2 = np.hstack(training_data_outputs_2)
+        return training_data_inputs_1, training_data_inputs_2, training_data_inputs_3, \
+            training_data_outputs_1, training_data_outputs_2
+
+# region train ML model
+
+# region load training/test data
+training_data_width_shape_variables_5_dims, training_data_pump_pressure_5_dims,_, \
+    training_data_displacements_5_dims, training_data_applied_work_5_dims = \
+    import_training_data('examples/advanced_examples/robotic_fish/training_data/saved_data_5_dims.hdf5')
+training_data_width_shape_variables_6_dims, training_data_pump_pressure_6_dims, training_data_height_6_dims, \
+    training_data_displacements_6_dims, training_data_applied_work_6_dims = \
+    import_training_data('examples/advanced_examples/robotic_fish/training_data/saved_data_6_dims.hdf5')
+training_data_width_shape_variables = np.hstack([training_data_width_shape_variables_5_dims, training_data_width_shape_variables_6_dims])
+training_data_pump_pressure = np.hstack([training_data_pump_pressure_5_dims, training_data_pump_pressure_6_dims])
+training_data_displacements = np.hstack([training_data_displacements_5_dims, training_data_displacements_6_dims])
+training_data_applied_work = np.hstack([training_data_applied_work_5_dims, training_data_applied_work_6_dims])
+
+
+training_data_geometry_coefficients = np.load('examples/advanced_examples/robotic_fish/training_data/training_data_geometry_coefficients.npy')
+# training_data_mesh_displacements = np.load('examples/advanced_examples/robotic_fish/training_data/training_data_mesh_displacements.npy')
+num_test_data = 50
+test_data_geometry_coefficients = training_data_geometry_coefficients[:, -num_test_data:]
+# test_data_mesh_displacements = training_data_mesh_displacements[:, -num_test_data:]
+test_data_pump_pressure = training_data_pump_pressure[:, -num_test_data:]
+test_data_displacements = training_data_displacements[:, -num_test_data:]
+test_data_applied_work = training_data_applied_work[:, -num_test_data:]
+
+training_data_geometry_coefficients = training_data_geometry_coefficients[:, :-num_test_data]
+# training_data_mesh_displacements = training_data_mesh_displacements[:, :-num_test_data]
+training_data_pump_pressure = training_data_pump_pressure[:, :-num_test_data]
+training_data_displacements = training_data_displacements[:, :-num_test_data]
+training_data_applied_work = training_data_applied_work[:, :-num_test_data]
+
+training_data_inputs = np.vstack([training_data_geometry_coefficients, training_data_pump_pressure]).T
+test_data_inputs = np.vstack([test_data_geometry_coefficients, test_data_pump_pressure]).T
+# training_data_inputs = np.vstack([training_data_mesh_displacements, training_data_pump_pressure]).T
+# test_data_inputs = np.vstack([test_data_mesh_displacements, test_data_pump_pressure]).T
+training_data_outputs = np.vstack([training_data_displacements, training_data_applied_work]).T
+test_data_outputs = np.vstack([test_data_displacements, test_data_applied_work]).T
+
+training_data_input_mins = training_data_inputs.min(axis=0)
+training_data_input_maxs = training_data_inputs.max(axis=0)
+training_data_output_mins = training_data_outputs.min(axis=0)
+training_data_output_maxs = training_data_outputs.max(axis=0)
+training_inputs_max_minus_min = training_data_input_maxs - training_data_input_mins
+training_outputs_max_minus_min = training_data_output_maxs - training_data_output_mins
+training_inputs_max_minus_min = np.where(training_inputs_max_minus_min == 0, 1, training_inputs_max_minus_min)
+training_outputs_max_minus_min = np.where(training_outputs_max_minus_min == 0, 1, training_outputs_max_minus_min)
+training_data_inputs = (training_data_inputs - training_data_input_mins) / training_inputs_max_minus_min
+test_data_inputs = (test_data_inputs - training_data_input_mins) / training_inputs_max_minus_min
+training_data_outputs = (training_data_outputs - training_data_output_mins) / training_outputs_max_minus_min
+test_data_outputs = (test_data_outputs - training_data_output_mins) / training_outputs_max_minus_min
+
 input_size = fishy.coefficients.size + 1
 output_size = structural_mesh_displacements.size + 1
-model = csdml.FCNN(input_dim=input_size, hidden_dims=[320, 320], output_dim=output_size, activation=['relu', 'relu', None])
+model = csdml.FCNN(input_dim=input_size, hidden_dims=[80, 80, 80], output_dim=output_size, activation=['tanh', 'tanh', 'tanh', None])
 
+# best_param_vals = pickle.load(open('best_param_vals_80_80_80_tanh_new_loss.pkl', 'rb'))
 best_param_vals = pickle.load(open('best_param_vals.pkl', 'rb'))
 model.set_param_values(best_param_vals)
 
-inputs = csdl.concatenate([fishy.coefficients.flatten(), pump_pressure])
+
+fishy_coefficients = csdl.Variable(value=fishy.coefficients.flatten().value, name='fishy_coefficients')
+# inputs = csdl.concatenate([fishy.coefficients.flatten(), pump_pressure]).reshape((1,-1))
+inputs = csdl.concatenate([fishy_coefficients, pump_pressure]).reshape((1,-1))
 t1 = time.time()
 outputs = model.forward(inputs)
 t2 = time.time()
+print('Time to evaluate model INLINE:', t2-t1)
 
-print('Time to evaluate model:', t2-t1)
+outputs = outputs[0,:]
+
+# Get unscaled outputs
+outputs = outputs * training_outputs_max_minus_min + training_data_output_mins
+displacements = outputs[:-1]
+applied_work = outputs[-1]
+
+print('Displacements:', displacements.value.reshape((-1,3)))
+print('Applied Work:', applied_work.value)
+
+# print('True Displacements: ', structural_displacements.value.reshape((-1,3)))
+# print('True Applied Work: ', structural_applied_work.value)
+displaced_mesh = structural_mesh + displacements.reshape((-1,3))
+
+initial_displaced_mesh = displaced_mesh.value
+
+# # Plot structural solver result
+# # fishy_plot = fishy.plot(show=False, opacity=0.3)
+# vedo_mesh = vedo.Mesh([displaced_mesh.value, structural_elements]).wireframe().color('lightgreen').opacity(0.5)
+# plotter = vedo.Plotter()
+# # plotter.show([fishy_plot, vedo_mesh], axes=1, viewup='y')
+# plotter.show([vedo_mesh], axes=0, viewup='y')
+
+# print('Time to evaluate model:', t2-t1)
+
+
+additional_inputs = [pump_pressure, fishy_coefficients]
+additional_outputs = [displacements]
+
+sim = csdl.experimental.JaxSimulator(
+    recorder = recorder,
+    additional_inputs=additional_inputs,
+    additional_outputs=additional_outputs,
+    gpu=False
+)
+
+sim.run()
+
+num_times = 100
+t1 = time.time()
+for i in range(num_times):
+    sim.run()
+t2 = time.time()
+print('Time to run simulation:', (t2-t1)/num_times)

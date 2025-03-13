@@ -147,9 +147,9 @@ output_size = training_data_displacements.shape[0] + 1 # +1 for applied_work
 # model = csdml.FCNN(input_dim=input_size, hidden_dims=[160,160,160,160,160], output_dim=output_size, activation=['relu','relu','relu','relu','tanh', None])
 model = csdml.FCNN(input_dim=input_size, hidden_dims=[80, 80, 80], output_dim=output_size, activation=['tanh', 'tanh', 'tanh', None])
 
-optimizer = optax.adam(1.e-3)
+optimizer = optax.adam(2.e-5)
 loss_history, test_loss_history, best_param_vals = model.train_jax_opt(optimizer, loss_data, test_data=test_data, 
-                                                                       device=device, num_epochs=1000, num_batches=1, plot=False)
+                                                                       device=device, num_epochs=500, num_batches=2, plot=False)
 # save loss history
 loss_history = np.array(loss_history)
 test_loss_history = np.array(test_loss_history)
